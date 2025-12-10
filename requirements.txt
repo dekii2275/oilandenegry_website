@@ -1,5 +1,5 @@
 fastapi
-uvicorn
+uvicorn[standard]
 sqlalchemy
 psycopg2-binary
 pymongo
@@ -10,3 +10,4 @@ python-jose[cryptography]
 python-multipart
 email-validator
 fastapi-mail
+websockets

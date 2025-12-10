@@ -57,8 +57,8 @@ async def register(
     token = jwt.encode(token_data, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
     # Nội dung email
-    verify_link = f"http://192.168.1.200:8000/api/auth/verify?token={token}"
-    logo_url = "https://via.placeholder.com/150x50?text=Energy+Logo" 
+    verify_link = f"http://192.168.1.200:8001/api/auth/verify?token={token}"
+    logo_url = "data/img/img_logo.png" 
     banner_url = "https://via.placeholder.com/600x200?text=Welcome+Banner"
     
     html = f"""
