@@ -22,3 +22,13 @@ class UserResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+# Dùng cho API 1: Yêu cầu gửi mail
+class EmailSchema(BaseModel):
+    email: EmailStr
+
+# Dùng cho API 2: Đặt lại mật khẩu
+class PasswordResetConfirm(BaseModel):
+    token: str
+    new_password: str
+    confirm_password: str

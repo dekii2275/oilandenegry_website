@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 
 from app.core.database import get_db
 from app.models.users import User
-from app.schemas.user import UserCreate, UserResponse, UserLogin
+from app.schemas.user import UserCreate, UserResponse, UserLogin, PasswordResetConfirm, EmailSchema
 from app.core.config import settings
 from fastapi_mail import FastMail, MessageSchema, ConnectionConfig, MessageType
 from app.models.users import User, Token  # Thêm Token vào import
@@ -74,6 +74,7 @@ async def register(
 
     # Nội dung email
     domain = "http://3.131.160.162:8001" 
+    # domain = "http://localhost:8000" 
     verify_link = f"{domain}/api/auth/verify?token={token}"
     logo_url = "data/img/img_logo.png" 
     banner_url = "https://via.placeholder.com/600x200?text=Welcome+Banner"
@@ -205,3 +206,92 @@ def login(user_in: UserLogin, db: Session = Depends(get_db)):
         "access_token": access_token, 
         "token_type": "bearer"
     }
+
+#api quen mat khau
+@router.post("/forgot-password")
+async def forgot_password(
+    data: EmailSchema, 
+    background_tasks: BackgroundTasks, 
+    db: Session = Depends(get_db)
+):
+    # 1. Tìm xem email có tồn tại không
+    user = db.query(User).filter(User.email == data.email).first()
+    if not user:
+        # Để bảo mật thì không nên báo lỗi, nhưng test thì cứ báo lỗi 404 cho dễ biết
+        raise HTTPException(status_code=404, detail="Email này chưa đăng ký hệ thống!")
+
+    # 2. Tạo Token đặc biệt (chỉ sống 15 phút)
+    token_data = {
+        "sub": user.email, 
+        "type": "reset_password" 
+    }
+    expire = datetime.utcnow() + timedelta(minutes=15)
+    token = jwt.encode({**token_data, "exp": expire}, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+
+    # 3. Tạo link Reset
+    # Thay IP này bằng IP Server AWS của bạn
+    domain = "http://3.131.160.162:8001" 
+    # domain = "http://localhost:8000" 
+    reset_link = f"{domain}/reset-password.html?token={token}"
+
+    # In ra terminal để debug nếu email không gửi được
+    print(f"DEBUG - RESET LINK: {reset_link}")
+
+    # 4. Nội dung Email
+    html = f"""
+    <h3>Yêu cầu đặt lại mật khẩu</h3>
+    <p>Xin chào {user.full_name},</p>
+    <p>Bạn vừa yêu cầu đặt lại mật khẩu. Hãy bấm vào link dưới đây:</p>
+    <a href="{reset_link}" style="padding: 10px 20px; background: #3182ce; color: white; text-decoration: none; border-radius: 5px;">ĐẶT LẠI MẬT KHẨU</a>
+    <p>Link hết hạn sau 15 phút.</p>
+    <p>Link dự phòng: {reset_link}</p>
+    """
+
+    # 5. Gửi Mail (Chạy ngầm)
+    message = MessageSchema(
+        subject="[Energy Platform] Đặt lại mật khẩu",
+        recipients=[user.email],
+        body=html,
+        subtype=MessageType.html
+    )
+    fm = FastMail(mail_conf)
+    background_tasks.add_task(fm.send_message, message)
+
+    return {"message": "Email hướng dẫn đã được gửi. Vui lòng kiểm tra hộp thư!"}
+
+# --- 5. API ĐẶT LẠI MẬT KHẨU (Đã update kiểm tra trùng khớp) ---
+@router.post("/reset-password")
+def reset_password(
+    data: PasswordResetConfirm, 
+    db: Session = Depends(get_db)
+):
+    # --- THÊM ĐOẠN KIỂM TRA NÀY ---
+    if data.new_password != data.confirm_password:
+        raise HTTPException(
+            status_code=400, 
+            detail="Mật khẩu xác nhận không khớp! Vui lòng kiểm tra lại."
+        )
+    # ------------------------------
+
+    # 1. Giải mã Token
+    try:
+        payload = jwt.decode(data.token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        email = payload.get("sub")
+        token_type = payload.get("type")
+        
+        if token_type != "reset_password":
+            raise HTTPException(status_code=400, detail="Token không hợp lệ")
+            
+    except JWTError:
+        raise HTTPException(status_code=400, detail="Token lỗi hoặc đã hết hạn")
+
+    # 2. Tìm user
+    user = db.query(User).filter(User.email == email).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User không tồn tại")
+
+    # 3. Hash mật khẩu mới và Lưu
+    user.hashed_password = get_password_hash(data.new_password)
+    db.commit()
+
+    return {"message": "Mật khẩu đã được đổi thành công! Hãy đăng nhập lại."}
