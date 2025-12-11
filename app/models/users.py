@@ -1,7 +1,7 @@
 from sqlalchemy import Column, Integer, String, Boolean, TIMESTAMP
 from sqlalchemy.sql import func
 from app.core.database import Base
-
+from pydantic import BaseModel, EmailStr
 class User(Base):
     __tablename__ = "users"
 
@@ -12,3 +12,14 @@ class User(Base):
     role = Column(String, default="CUSTOMER")
     is_verified = Column(Boolean, default=False)
     created_at = Column(TIMESTAMP, server_default=func.now())
+
+
+# 1. Dữ liệu gửi lên khi Đăng nhập
+class UserLogin(BaseModel):
+    email: EmailStr
+    password: str
+
+# 2. Dữ liệu Token trả về khi đăng nhập thành công
+class Token(BaseModel):
+    access_token: str
+    token_type: str

@@ -9,6 +9,7 @@ from app.models.users import User
 from app.schemas.user import UserCreate, UserResponse, UserLogin
 from app.core.config import settings
 from fastapi_mail import FastMail, MessageSchema, ConnectionConfig, MessageType
+from app.models.users import User, Token  # Thêm Token vào import
 
 router = APIRouter()
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -28,6 +29,21 @@ mail_conf = ConnectionConfig(
 # Hàm mã hóa mật khẩu
 def get_password_hash(password):
     return pwd_context.hash(password)
+
+# Hàm kiểm tra mật khẩu
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    return pwd_context.verify(plain_password, hashed_password)
+
+# Hàm tạo access token
+def create_access_token(data: dict, expires_delta: timedelta = None):
+    to_encode = data.copy()
+    if expires_delta:
+        expire = datetime.utcnow() + expires_delta
+    else:
+        expire = datetime.utcnow() + timedelta(hours=24)  # Token hết hạn sau 24 giờ
+    to_encode.update({"exp": expire})
+    encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+    return encoded_jwt
 
 # --- 1. API ĐĂNG KÝ ---
 @router.post("/register", response_model=UserResponse)
@@ -57,7 +73,8 @@ async def register(
     token = jwt.encode(token_data, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
     # Nội dung email
-    verify_link = f"http://192.168.1.200:8001/api/auth/verify?token={token}"
+    domain = "http://3.131.160.162:8001" 
+    verify_link = f"{domain}/api/auth/verify?token={token}"
     logo_url = "data/img/img_logo.png" 
     banner_url = "https://via.placeholder.com/600x200?text=Welcome+Banner"
     
@@ -148,3 +165,43 @@ def verify_email(token: str, db: Session = Depends(get_db)):
     user.is_verified = True
     db.commit()
     return {"message": "Xác thực THÀNH CÔNG! Giờ bạn có thể đăng nhập."}
+
+
+# API dang nhap
+@router.post("/login", response_model=Token)
+def login(user_in: UserLogin, db: Session = Depends(get_db)):
+    """
+    API này nhận Email + Password.
+    Nếu đúng -> Trả về Token.
+    Nếu sai -> Báo lỗi 400.
+    """
+    
+    # B1: Tìm xem email có trong kho không?
+    user = db.query(User).filter(User.email == user_in.email).first()
+    if not user:
+        # Gợi ý bảo mật: Không nên nói rõ là "Email không tồn tại", cứ nói chung chung
+        raise HTTPException(status_code=400, detail="Email hoặc mật khẩu không chính xác")
+    
+    # B2: Kiểm tra mật khẩu (So sánh cái nhập vào với cái đã mã hóa trong DB)
+    if not verify_password(user_in.password, user.hashed_password):
+        raise HTTPException(status_code=400, detail="Email hoặc mật khẩu không chính xác")
+    
+    # B3: Kiểm tra xem đã xác thực email chưa?
+    if not user.is_verified:
+        raise HTTPException(status_code=400, detail="Tài khoản chưa kích hoạt. Vui lòng kiểm tra email!")
+
+    # B4: Cấp Token (Vé vào cửa)
+    # Chúng ta nhét thêm ID và Role vào trong vé để Frontend tiện dùng
+    access_token = create_access_token(
+        data={
+            "sub": user.email, 
+            "id": user.id,
+            "role": user.role
+        }
+    )
+    
+    # Trả về kết quả
+    return {
+        "access_token": access_token, 
+        "token_type": "bearer"
+    }
