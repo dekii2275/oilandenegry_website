@@ -1,5 +1,5 @@
 from fastapi import Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer
+from fastapi.security import HTTPBearer
 from jose import jwt, JWTError
 from sqlalchemy.orm import Session
 from app.core.config import settings
@@ -7,10 +7,10 @@ from app.core.database import get_db
 from app.models.users import User
 
 # Khai báo đường dẫn lấy token (dùng cho Swagger UI nhập liệu)
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
+oauth2_scheme = HTTPBearer()
 
 def get_current_user(
-    token: str = Depends(oauth2_scheme), 
+    token: str = Depends(security), 
     db: Session = Depends(get_db)
 ):
     credentials_exception = HTTPException(
@@ -18,7 +18,7 @@ def get_current_user(
         detail="Không thể xác thực thông tin đăng nhập",
         headers={"WWW-Authenticate": "Bearer"},
     )
-    
+    token = token_obj.credentials
     try:
         # Giải mã Token
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
