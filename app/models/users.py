@@ -12,6 +12,7 @@ class User(Base):
     role = Column(String, default="CUSTOMER")
     is_verified = Column(Boolean, default=False)
     created_at = Column(TIMESTAMP, server_default=func.now())
+    avatar_url = Column(String, nullable=True)
 
 
 # 1. Dữ liệu gửi lên khi Đăng nhập

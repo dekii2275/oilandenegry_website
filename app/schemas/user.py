@@ -19,6 +19,7 @@ class UserResponse(BaseModel):
     full_name: Optional[str] = None
     role: str
     is_verified: bool # Trả về trạng thái xác thực
+    avatar_url: Optional[str] = None # <-- Thêm dòng này
 
     class Config:
         from_attributes = True
@@ -32,3 +33,10 @@ class PasswordResetConfirm(BaseModel):
     token: str
     new_password: str
     confirm_password: str
+
+# API update user
+class UserUpdate(BaseModel):
+    full_name: Optional[str] = None
+    avatar_url: Optional[str] = None
+    phone_number: Optional[str] = None
+    address: Optional[str] = None
