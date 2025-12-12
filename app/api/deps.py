@@ -6,11 +6,12 @@ from app.core.config import settings
 from app.core.database import get_db
 from app.models.users import User
 
-# Khai báo đường dẫn lấy token (dùng cho Swagger UI nhập liệu)
-oauth2_scheme = HTTPBearer()
+# Khởi tạo bảo mật HTTP Bearer
+security = HTTPBearer()
 
 def get_current_user(
-    token: str = Depends(security), 
+    # 👇 SỬA DÒNG NÀY: Phải đặt tên là 'token_obj' thì bên dưới mới dùng được
+    token_obj = Depends(security), 
     db: Session = Depends(get_db)
 ):
     credentials_exception = HTTPException(
@@ -18,9 +19,11 @@ def get_current_user(
         detail="Không thể xác thực thông tin đăng nhập",
         headers={"WWW-Authenticate": "Bearer"},
     )
-    token = token_obj.credentials
+    
+    # Lấy chuỗi token thực sự từ object wrapper
+    token = token_obj.credentials 
+
     try:
-        # Giải mã Token
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         email: str = payload.get("sub")
         if email is None:
@@ -28,7 +31,6 @@ def get_current_user(
     except JWTError:
         raise credentials_exception
 
-    # Tìm user trong DB
     user = db.query(User).filter(User.email == email).first()
     if user is None:
         raise credentials_exception
