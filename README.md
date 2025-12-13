@@ -32,54 +32,149 @@ MAIL_PASSWORD=your_mail_password
 MAIL_FROM=you@example.com
 MAIL_PORT=587
 MAIL_SERVER=smtp.example.com
+```
 
-Cách 2: Chạy bằng Docker Compose (Khuyên dùng)
+## 🚀 Cách chạy Backend
 
-    Khởi chạy container:
-    Bash
+### Cách 1: Chạy trực tiếp trên môi trường Local
 
-    docker compose up -d
+1. Tạo môi trường ảo Python:
+   ```bash
+   python -m venv venv
+   source venv/bin/activate  # Trên Windows: venv\Scripts\activate
+   ```
 
-    Thông tin vận hành:
+2. Cài đặt dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
 
-        Backend lắng nghe trong container ở port 8000, nhưng được map ra máy host ở port 8001.
+3. Chạy ứng dụng:
+   ```bash
+   uvicorn app.main:app --reload --port 8000
+   ```
 
-        Dữ liệu Postgres/Mongo được lưu trữ bền vững (persistent) tại volume pg_data và mongo_data.
+### Cách 2: Chạy bằng Docker Compose (Khuyên dùng)
 
-        File khởi tạo SQL: docker/db/init.sql (tự động mount vào Postgres khi khởi tạo).
+Khởi chạy container:
+```bash
+docker compose up -d
+```
 
-    Truy cập tài liệu API:
+Thông tin vận hành:
 
-        URL: http://localhost:8001/docs
+- Backend lắng nghe trong container ở port 8000, nhưng được map ra máy host ở port 8001.
+- Dữ liệu Postgres/Mongo được lưu trữ bền vững (persistent) tại volume pg_data và mongo_data.
+- File khởi tạo SQL: docker/db/init.sql (tự động mount vào Postgres khi khởi tạo).
 
-📂 Cấu trúc dự án
+Truy cập tài liệu API:
 
-    app/main.py: Khởi tạo ứng dụng FastAPI, include các router (auth).
+- URL: http://localhost:8001/docs
 
-    app/api/auth.py: Xử lý logic đăng ký user, gửi email verify, endpoint verify token.
+## 📂 Cấu trúc dự án Backend
 
-    app/models/users.py: Định nghĩa Model SQLAlchemy cho bảng users.
+- `app/main.py`: Khởi tạo ứng dụng FastAPI, include các router (auth).
+- `app/api/auth.py`: Xử lý logic đăng ký user, gửi email verify, endpoint verify token.
+- `app/models/users.py`: Định nghĩa Model SQLAlchemy cho bảng users.
+- `app/schemas/user.py`: Định nghĩa Schema Pydantic cho dữ liệu đầu vào/đầu ra (Đăng ký, Đăng nhập, Response).
+- `app/core/config.py`: Load biến môi trường, cấu hình secrets và thông tin email.
+- `app/core/database.py`: Thiết lập kết nối DB, tạo engine, session và class Base.
 
-    app/schemas/user.py: Định nghĩa Schema Pydantic cho dữ liệu đầu vào/đầu ra (Đăng ký, Đăng nhập, Response).
-
-    app/core/config.py: Load biến môi trường, cấu hình secrets và thông tin email.
-
-    app/core/database.py: Thiết lập kết nối DB, tạo engine, session và class Base.
-
-🔗 Các Endpoint chính
+## 🔗 Các Endpoint chính
 
 Prefix mặc định: /api/auth
 
-    POST /api/auth/register: Đăng ký tài khoản mới và gửi email xác thực.
+- `POST /api/auth/register`: Đăng ký tài khoản mới và gửi email xác thực.
+- `GET /api/auth/verify?token=...`: Link xác thực email (người dùng click vào link này).
+- `GET /`: (Root) Trả về trạng thái sẵn sàng của hệ thống.
 
-    GET /api/auth/verify?token=...: Link xác thực email (người dùng click vào link này).
+## 📧 Tính năng gửi Email
 
-    GET /: (Root) Trả về trạng thái sẵn sàng của hệ thống.
+- Hệ thống sử dụng thư viện fastapi-mail.
+- Yêu cầu thông tin SMTP hợp lệ trong file .env.
+- Quan trọng: Link xác thực hiện đang được hardcode trong code là http://192.168.1.200:8001/.... Khi triển khai thực tế hoặc đổi môi trường mạng, bạn cần cập nhật lại domain/host này trong app/api/auth.py.
 
-📧 Tính năng gửi Email
+---
 
-    Hệ thống sử dụng thư viện fastapi-mail.
+# Z-ENERGY Authentication (Frontend)
 
-    Yêu cầu thông tin SMTP hợp lệ trong file .env.
+Next.js project với authentication system.
 
-    Quan trọng: Link xác thực hiện đang được hardcode trong code là http://192.168.1.200:8001/.... Khi triển khai thực tế hoặc đổi môi trường mạng, bạn cần cập nhật lại domain/host này trong app/api/auth.py.
+## 📋 Yêu cầu hệ thống
+
+* **Node.js:** 18+
+* **npm** hoặc **yarn**
+
+## 📂 Cấu trúc dự án Frontend
+
+```
+src/
+├── app/
+│   ├── (auth)/                 # Route group cho auth
+│   │   ├── layout.tsx          # Layout riêng cho auth
+│   │   ├── register/
+│   │   │   └── page.tsx        # Trang Đăng ký
+│   │   └── login/
+│   │       └── page.tsx        # Trang Đăng nhập
+│   │
+│   ├── layout.tsx              # Layout toàn app
+│   └── globals.css
+│
+├── components/
+│   ├── auth/
+│   │   ├── RegisterForm.tsx    # Form đăng ký
+│   │   ├── AuthInput.tsx       # Input có icon
+│   │   └── AuthButton.tsx      # Nút đăng ký
+│   │
+│   ├── ui/
+│   │   ├── Input.tsx
+│   │   └── Button.tsx
+│
+├── assets/
+│   └── images/
+│       ├── auth-bg.jpg         # Background rừng xanh
+│       └── logo.png            # Logo Z-ENERGY
+│
+├── lib/
+│   └── validators/
+│       └── auth.ts             # validate email, password
+│
+├── services/
+│   └── auth.service.ts         # gọi API đăng ký
+│
+├── types/
+│   └── auth.ts                 # interface RegisterPayload
+│
+└── constants/
+    └── routes.ts
+```
+
+## 🚀 Cài đặt và chạy Frontend
+
+### Cài đặt dependencies
+
+```bash
+npm install
+```
+
+### Chạy development server
+
+```bash
+npm run dev
+```
+
+Mở [http://localhost:3000](http://localhost:3000) để xem kết quả.
+
+## ⚙️ Cấu hình môi trường Frontend
+
+Tạo file `.env.local` tại thư mục gốc và thêm:
+
+```ini
+NEXT_PUBLIC_API_URL=http://localhost:8001/api
+```
+
+## 📝 Lưu ý
+
+1. Thêm file `auth-bg.jpg` vào `public/assets/images/`
+2. Thêm file `logo.png` vào `public/assets/images/`
+3. Cấu hình `NEXT_PUBLIC_API_URL` trong `.env.local` nếu cần
