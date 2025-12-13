@@ -2,6 +2,7 @@ from sqlalchemy import Column, Integer, String, Boolean, TIMESTAMP
 from sqlalchemy.sql import func
 from app.core.database import Base
 from pydantic import BaseModel, EmailStr
+from sqlalchemy.orm import relationship
 class User(Base):
     __tablename__ = "users"
 
@@ -13,6 +14,7 @@ class User(Base):
     is_verified = Column(Boolean, default=False)
     created_at = Column(TIMESTAMP, server_default=func.now())
     avatar_url = Column(String, nullable=True)
+    addresses = relationship("app.models.address.Address", back_populates="owner")
 
 
 # 1. Dữ liệu gửi lên khi Đăng nhập
