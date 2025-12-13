@@ -73,7 +73,7 @@ async def register(
     token = jwt.encode(token_data, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
     # Nội dung email
-    domain = "http://3.131.160.162:8001" 
+    domain = "http://13.212.128.129:8001"
     # domain = "http://localhost:8000" 
     verify_link = f"{domain}/api/auth/verify?token={token}"
     logo_url = "data/img/img_logo.png" 
@@ -230,7 +230,7 @@ async def forgot_password(
 
     # 3. Tạo link Reset
     # Thay IP này bằng IP Server AWS của bạn
-    domain = "http://3.131.160.162:8001" 
+    domain = "http://13.212.128.129:8001"
     # domain = "http://localhost:8000" 
     reset_link = f"{domain}/reset-password.html?token={token}"
 

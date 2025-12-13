@@ -1,4 +1,3 @@
-
 services:
   postgres:
     image: postgres:15-alpine
@@ -12,7 +11,7 @@ services:
       - "5432:5432"
     volumes:
       - pg_data:/var/lib/postgresql/data
-      - ./docker/db/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./backend/docker/db/init.sql:/docker-entrypoint-initdb.d/init.sql
 
   mongo:
     image: mongo:6.0
@@ -28,44 +27,42 @@ services:
 
   backend:
     build:
-      context: .
+      context: ./backend
       dockerfile: docker/backend/Dockerfile
     container_name: energy_backend
     restart: always
-    # Lệnh chạy server (lắng nghe 0.0.0.0 để bên ngoài vào được)
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     depends_on:
       - postgres
       - mongo
-    # --- ĐÂY LÀ PHẦN QUAN TRỌNG MỚI THÊM ---
-    # Dòng này giúp Backend đọc được MAIL_USERNAME, MAIL_PASSWORD từ file .env
     env_file:
       - .env
-    # ---------------------------------------
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       MONGO_URL: mongodb://${MONGO_USER}:${MONGO_PASSWORD}@mongo:27017
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     ports:
       - "8001:8000"
     volumes:
-      - ./app:/app/app
-  
+      - ./backend/app:/app/app
+      - ./backend/static:/app/static
+
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
     container_name: energy_frontend
     restart: always
+    depends_on:
+      - backend
+    environment:
+      NEXT_PUBLIC_API_URL: http://13.212.128.129:8001/api
+
     ports:
       - "3000:3000"
-    environment:
-      - NEXT_PUBLIC_API_URL=http://localhost:8001/api
     volumes:
       - ./frontend:/app
       - /app/node_modules
       - /app/.next
-    depends_on:
-      - backend
 
 volumes:
   pg_data:
