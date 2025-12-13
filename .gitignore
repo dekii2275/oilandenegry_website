@@ -38,3 +38,4 @@ data/*.sqlite3
 # Misc
 *.tsbuildinfo
 next-env.d.ts
+.venv/
