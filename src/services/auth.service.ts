@@ -1,6 +1,6 @@
 import { RegisterPayload } from '@/types/auth'
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api'
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001/api'
 
 export const registerUser = async (payload: RegisterPayload) => {
   const response = await fetch(`${API_BASE_URL}/auth/register`, {
