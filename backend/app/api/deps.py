@@ -10,7 +10,6 @@ from app.models.users import User
 security = HTTPBearer()
 
 def get_current_user(
-    # 👇 SỬA DÒNG NÀY: Phải đặt tên là 'token_obj' thì bên dưới mới dùng được
     token_obj = Depends(security), 
     db: Session = Depends(get_db)
 ):
@@ -20,7 +19,6 @@ def get_current_user(
         headers={"WWW-Authenticate": "Bearer"},
     )
     
-    # Lấy chuỗi token thực sự từ object wrapper
     token = token_obj.credentials 
 
     try:
@@ -36,3 +34,14 @@ def get_current_user(
         raise credentials_exception
         
     return user
+
+# Dependency để kiểm tra user có phải Admin không
+def get_current_admin(
+    current_user: User = Depends(get_current_user)
+):
+    if current_user.role != "ADMIN":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Chỉ Admin mới có quyền truy cập"
+        )
+    return current_user

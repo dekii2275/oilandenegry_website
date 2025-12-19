@@ -6,10 +6,13 @@ from datetime import datetime, timedelta
 
 from app.core.database import get_db
 from app.models.users import User
-from app.schemas.user import UserCreate, UserResponse, UserLogin, PasswordResetConfirm, EmailSchema
+from app.schemas.user import UserCreate, UserResponse, UserLogin, PasswordResetConfirm, EmailSchema, SellerRegistrationRequest
 from app.core.config import settings
 from fastapi_mail import FastMail, MessageSchema, ConnectionConfig, MessageType
 from app.models.users import User, Token  # Thêm Token vào import
+from app.models.store import Store  # Thêm import
+from app.api.deps import get_current_user  # Thêm import
+
 
 router = APIRouter()
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -180,19 +183,24 @@ def login(user_in: UserLogin, db: Session = Depends(get_db)):
     # B1: Tìm xem email có trong kho không?
     user = db.query(User).filter(User.email == user_in.email).first()
     if not user:
-        # Gợi ý bảo mật: Không nên nói rõ là "Email không tồn tại", cứ nói chung chung
         raise HTTPException(status_code=400, detail="Email hoặc mật khẩu không chính xác")
     
-    # B2: Kiểm tra mật khẩu (So sánh cái nhập vào với cái đã mã hóa trong DB)
+    # B2: Kiểm tra mật khẩu
     if not verify_password(user_in.password, user.hashed_password):
         raise HTTPException(status_code=400, detail="Email hoặc mật khẩu không chính xác")
     
     # B3: Kiểm tra xem đã xác thực email chưa?
     if not user.is_verified:
         raise HTTPException(status_code=400, detail="Tài khoản chưa kích hoạt. Vui lòng kiểm tra email!")
+    
+    # B4: Nếu là SELLER, kiểm tra đã được admin duyệt chưa?
+    if user.role == "SELLER" and not user.is_approved:
+        raise HTTPException(
+            status_code=403, 
+            detail="Tài khoản Nhà bán hàng của bạn đang chờ Admin duyệt. Vui lòng đợi thông báo qua email!"
+        )
 
-    # B4: Cấp Token (Vé vào cửa)
-    # Chúng ta nhét thêm ID và Role vào trong vé để Frontend tiện dùng
+    # B5: Cấp Token
     access_token = create_access_token(
         data={
             "sub": user.email, 
@@ -201,7 +209,6 @@ def login(user_in: UserLogin, db: Session = Depends(get_db)):
         }
     )
     
-    # Trả về kết quả
     return {
         "access_token": access_token, 
         "token_type": "bearer"
@@ -295,3 +302,59 @@ def reset_password(
     db.commit()
 
     return {"message": "Mật khẩu đã được đổi thành công! Hãy đăng nhập lại."}
+
+# --- API ĐĂNG KÝ SELLER (Customer đăng ký làm Seller) ---
+@router.post("/register-seller", response_model=UserResponse)
+async def register_seller(
+    store_info: SellerRegistrationRequest,
+    current_user: User = Depends(get_current_user),  # Yêu cầu đăng nhập
+    db: Session = Depends(get_db)
+):
+    """
+    API để Customer đăng ký làm Seller.
+    Yêu cầu:
+    - Phải đăng nhập (có token)
+    - Phải là CUSTOMER
+    - Chưa có store nào
+    - Cập nhật thông tin cửa hàng
+    - Chuyển role thành SELLER và chờ admin duyệt
+    """
+    # Kiểm tra user phải là CUSTOMER
+    if current_user.role != "CUSTOMER":
+        raise HTTPException(
+            status_code=400, 
+            detail="Chỉ tài khoản Customer mới có thể đăng ký làm Seller!"
+        )
+    
+    # Kiểm tra user đã có store chưa
+    existing_store = db.query(Store).filter(Store.user_id == current_user.id).first()
+    if existing_store:
+        raise HTTPException(
+            status_code=400,
+            detail="Bạn đã đăng ký làm Seller rồi!"
+        )
+    
+    # Tạo Store mới
+    new_store = Store(
+        user_id=current_user.id,
+        store_name=store_info.store_name,
+        store_description=store_info.store_description,
+        phone_number=store_info.phone_number,
+        address=store_info.address,
+        city=store_info.city,
+        district=store_info.district,
+        ward=store_info.ward,
+        business_license=store_info.business_license,
+        tax_code=store_info.tax_code,
+        is_active=False  # Chưa active cho đến khi admin duyệt
+    )
+    db.add(new_store)
+    
+    # Cập nhật role của user thành SELLER và is_approved = False
+    current_user.role = "SELLER"
+    current_user.is_approved = False  # Chờ admin duyệt
+    
+    db.commit()
+    db.refresh(current_user)
+    
+    return current_user

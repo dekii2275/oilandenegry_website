@@ -3,6 +3,7 @@ from sqlalchemy.sql import func
 from app.core.database import Base
 from pydantic import BaseModel, EmailStr
 from sqlalchemy.orm import relationship
+
 class User(Base):
     __tablename__ = "users"
 
@@ -12,9 +13,11 @@ class User(Base):
     full_name = Column(String)
     role = Column(String, default="CUSTOMER")
     is_verified = Column(Boolean, default=False)
+    is_approved = Column(Boolean, default=False)  # Dùng cho seller approval
     created_at = Column(TIMESTAMP, server_default=func.now())
     avatar_url = Column(String, nullable=True)
     addresses = relationship("app.models.address.Address", back_populates="owner")
+    store = relationship("app.models.store.Store", back_populates="owner", uselist=False)  # Thêm relationship với Store
 
 
 # 1. Dữ liệu gửi lên khi Đăng nhập
