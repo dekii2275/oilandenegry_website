@@ -11,3 +11,5 @@ python-multipart
 email-validator
 fastapi-mail
 websockets
+yfinance
+pandas

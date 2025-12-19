@@ -1,41 +1,36 @@
-# Node.js (frontend)
-frontend/node_modules/
-frontend/package-lock.json
-frontend/.next/
-frontend/out/
-frontend/.env*
-frontend/coverage/
-frontend/npm-debug.log*
-frontend/yarn-debug.log*
-frontend/yarn-error.log*
-frontend/.vercel
-frontend/.pnp
-frontend/.pnp.js
-frontend/.DS_Store
-frontend/*.tsbuildinfo
+# --- Dependencies (Chặn tất cả thư viện nặng) ---
+node_modules/
+bower_components/
+package-lock.json
+yarn.lock
+# (Nếu bạn muốn giữ lock file thì bỏ 2 dòng lock trên, nhưng node_modules bắt buộc phải chặn)
 
-# Python (backend)
-backend/__pycache__/
-backend/venv/
-backend/*.pyc
-backend/.env*
-
-# General
-.DS_Store
-*.pem
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+env/
+.venv/
 .env
 .env.*
-*.log
 
-# Data
-data/*.db
-data/*.sqlite
-data/*.sqlite3
-
-# Build
-/build
-
-# Misc
+# --- Next.js / Web Build ---
+.next/
+out/
+build/
+dist/
+.vercel/
 *.tsbuildinfo
-next-env.d.ts
-.venv/
+
+# --- OS & Editor ---
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.log
+*.pem
+
+# --- DataBase ---
+*.db
+*.sqlite3

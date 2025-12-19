@@ -11,6 +11,7 @@ from app.core.database import engine
 from app.api import auth, upload
 from app.api import users as user_router
 from app.api import address as address_router # <-- Mới
+from app.api import getdatafromyahoo as market_data_router
 
 # --- 3. KHỞI TẠO BẢNG DATABASE ---
 # Lệnh này sẽ tự động tạo bảng nếu chưa có (users, addresses...)
@@ -44,6 +45,9 @@ app.include_router(upload.router, prefix="/api/upload", tags=["Upload"])
 
 # Address: Thêm, Sửa, Xóa địa chỉ (QUAN TRỌNG: Bạn đang thiếu dòng này)
 app.include_router(address_router.router, prefix="/api/users/addresses", tags=["Addresses"]) 
+
+# Market Data: Lấy dữ liệu thị trường
+app.include_router(market_data_router.router, prefix="/api/market-data", tags=["Market Data"])
 
 # --- 6. ROOT ENDPOINT ---
 @app.get("/")
