@@ -28,7 +28,7 @@ services:
   backend:
     build:
       context: ./backend
-      dockerfile: backend/docker/backend/Dockerfile
+      dockerfile: docker/backend/Dockerfile
     container_name: energy_backend
     restart: always
     depends_on:
