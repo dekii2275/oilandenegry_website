@@ -7,6 +7,7 @@ yarn.lock
 
 # --- Python ---
 __pycache__/
+*.pyc
 *.py[cod]
 *$py.class
 venv/
@@ -34,3 +35,6 @@ Thumbs.db
 # --- DataBase ---
 *.db
 *.sqlite3
+next-env.d.ts
+.venv/
+*.pdf
