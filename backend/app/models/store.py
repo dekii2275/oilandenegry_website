@@ -31,3 +31,4 @@ class Store(Base):
     
     # Relationship với User
     owner = relationship("app.models.users.User", back_populates="store")
+    products = relationship("app.models.product.Product", back_populates="store")

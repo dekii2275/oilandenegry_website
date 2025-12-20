@@ -18,6 +18,8 @@ class User(Base):
     avatar_url = Column(String, nullable=True)
     addresses = relationship("app.models.address.Address", back_populates="owner")
     store = relationship("app.models.store.Store", back_populates="owner", uselist=False)  # Thêm relationship với Store
+    cart = relationship("Cart", back_populates="user", uselist=False)  # Thêm relationship với Cart
+    orders = relationship("Order", back_populates="user")  # Thêm relationship với Order
 
 
 # 1. Dữ liệu gửi lên khi Đăng nhập
