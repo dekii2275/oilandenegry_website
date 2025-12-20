@@ -6,6 +6,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.models import users as user_model 
 from app.models import address as address_model # <-- Mới
 from app.models import store as store_model  # Thêm import
+from app.models import product as product_model  # Thêm import
+from app.models import cart as cart_model  # Thêm import
+from app.models import order as order_model  # Thêm import
 from app.core.database import engine
 
 # --- 2. IMPORT ROUTERS (Logic API) ---
@@ -13,13 +16,17 @@ from app.api import auth, upload
 from app.api import users as user_router
 from app.api import address as address_router # <-- Mới
 from app.api import admin as admin_router  # Thêm import
+from app.api import cart as cart_router  # Thêm import
+from app.api import orders as orders_router  # Thêm import
 
 # --- 3. KHỞI TẠO BẢNG DATABASE ---
 # Lệnh này sẽ tự động tạo bảng nếu chưa có (users, addresses...)
 user_model.Base.metadata.create_all(bind=engine) 
 address_model.Base.metadata.create_all(bind=engine)
 store_model.Base.metadata.create_all(bind=engine)  # Thêm dòng này
-
+product_model.Base.metadata.create_all(bind=engine)  # Thêm dòng này
+cart_model.Base.metadata.create_all(bind=engine)  # Thêm dòng này
+order_model.Base.metadata.create_all(bind=engine)  # Thêm dòng này
 # --- 4. KHỞI TẠO APP ---
 app = FastAPI(title="Energy Platform API")
 
@@ -48,7 +55,8 @@ app.include_router(upload.router, prefix="/api/upload", tags=["Upload"])
 # Address: Thêm, Sửa, Xóa địa chỉ (QUAN TRỌNG: Bạn đang thiếu dòng này)
 app.include_router(address_router.router, prefix="/api/users/addresses", tags=["Addresses"]) 
 app.include_router(admin_router.router, prefix="/api/admin", tags=["Admin"])  # Thêm router admin
-
+app.include_router(cart_router.router, prefix="/api/cart", tags=["Cart"])  # Thêm router cart
+app.include_router(orders_router.router, prefix="/api/orders", tags=["Orders"])  # Thêm router orders
 # --- 6. ROOT ENDPOINT ---
 @app.get("/")
 def read_root():
