@@ -1,19 +1,28 @@
 import { z } from 'zod'
 
+// Password: min 8, at least 1 uppercase, 1 lowercase, 1 number and 1 special char
+const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/
+
 export const registerSchema = z
   .object({
     email: z
       .string()
       .min(1, 'Email là bắt buộc')
-      .email('Email không hợp lệ'),
+      .email('Email không hợp lệ')
+      .refine((val) => val.toLowerCase().endsWith('@gmail.com'), {
+        message: 'Chỉ chấp nhận địa chỉ email Gmail (@gmail.com)',
+      }),
     username: z
       .string()
       .min(1, 'Tên người dùng là bắt buộc')
       .min(3, 'Tên người dùng phải có ít nhất 3 ký tự'),
     password: z
       .string()
-      .min(1, 'Mật khẩu là bắt buộc')
-      .min(6, 'Mật khẩu phải có ít nhất 6 ký tự'),
+      .min(8, 'Mật khẩu phải có ít nhất 8 ký tự')
+      .regex(
+        passwordRegex,
+        'Mật khẩu phải gồm chữ hoa, chữ thường, số và ký tự đặc biệt'
+      ),
     confirmPassword: z.string().min(1, 'Vui lòng xác nhận mật khẩu'),
   })
   .refine((data) => data.password === data.confirmPassword, {
@@ -25,8 +34,17 @@ export const loginSchema = z.object({
   email: z
     .string()
     .min(1, 'Email là bắt buộc')
-    .email('Email không hợp lệ'),
-  password: z.string().min(1, 'Mật khẩu là bắt buộc'),
+    .email('Email không hợp lệ')
+    .refine((val) => val.toLowerCase().endsWith('@gmail.com'), {
+      message: 'Chỉ chấp nhận địa chỉ email Gmail (@gmail.com)',
+    }),
+  password: z
+    .string()
+    .min(8, 'Mật khẩu phải có ít nhất 8 ký tự')
+    .regex(
+      passwordRegex,
+      'Mật khẩu phải gồm chữ hoa, chữ thường, số và ký tự đặc biệt'
+    ),
 })
 
 export type RegisterInput = z.infer<typeof registerSchema>

@@ -5,9 +5,11 @@ import { ROUTES } from '@/constants/routes'
 
 interface SuccessNotificationProps {
   variant?: 'email' | 'login'
+  // optional registered email (used to show mail provider shortcut)
+  email?: string
 }
 
-export default function SuccessNotification({ variant = 'email' }: SuccessNotificationProps) {
+export default function SuccessNotification({ variant = 'email', email }: SuccessNotificationProps) {
   const emailMessage = (
     <>
       <div className="text-center font-bold text-black text-base leading-relaxed mb-4">
@@ -15,13 +17,26 @@ export default function SuccessNotification({ variant = 'email' }: SuccessNotifi
         <div>vui lòng truy cập email</div>
         <div>của bạn để xác thực</div>
       </div>
-      <div className="text-center">
-        <Link 
-          href={ROUTES.LOGIN}
-          className="text-green-600 hover:text-green-700 font-semibold text-sm underline transition-colors"
-        >
-          Quay lại đăng nhập
-        </Link>
+      <div className="space-y-3">
+        <div className="flex items-center justify-center gap-3">
+          {email && email.toLowerCase().endsWith('@gmail.com') && (
+            <a
+              href="https://mail.google.com"
+              target="_blank"
+              rel="noreferrer"
+              className="inline-block bg-white text-green-700 font-semibold py-2 px-4 rounded-lg shadow hover:bg-gray-100 transition-colors"
+            >
+              Mở Gmail
+            </a>
+          )}
+          <Link 
+            href={ROUTES.LOGIN}
+            className="text-green-600 hover:text-green-700 font-semibold text-sm underline transition-colors"
+          >
+            Quay lại đăng nhập
+          </Link>
+        </div>
+        <div className="text-xs text-gray-600 text-center">Nếu không thấy email, kiểm tra thư mục Spam hoặc chờ vài phút.</div>
       </div>
     </>
   )

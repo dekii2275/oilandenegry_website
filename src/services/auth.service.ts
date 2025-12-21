@@ -16,7 +16,14 @@ export const registerUser = async (payload: RegisterPayload) => {
     throw new Error(error.message || 'Đăng ký thất bại')
   }
 
-  return response.json()
+  // Some APIs may return no JSON body on success (204 or plain text). Try to parse JSON,
+  // but fall back to a simple success flag so callers can reliably navigate on success.
+  const contentType = response.headers.get('content-type') || ''
+  if (contentType.includes('application/json')) {
+    return response.json()
+  }
+
+  return { success: true }
 }
 
 export const loginUser = async (email: string, password: string) => {
