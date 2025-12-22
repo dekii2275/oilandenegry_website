@@ -1,86 +1,45 @@
-import { API_ENDPOINTS } from '@/lib/api';
+import { RegisterPayload } from '@/types/auth'
 
-export interface RegisterData {
-  email: string;
-  password: string;
-  full_name: string;
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api'
+
+export const registerUser = async (payload: RegisterPayload) => {
+  const response = await fetch(`${API_BASE_URL}/auth/register`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  })
+
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(error.message || 'Đăng ký thất bại')
+  }
+
+  // Some APIs may return no JSON body on success (204 or plain text). Try to parse JSON,
+  // but fall back to a simple success flag so callers can reliably navigate on success.
+  const contentType = response.headers.get('content-type') || ''
+  if (contentType.includes('application/json')) {
+    return response.json()
+  }
+
+  return { success: true }
 }
 
-export interface LoginData {
-  email: string;
-  password: string;
+export const loginUser = async (email: string, password: string) => {
+  const response = await fetch(`${API_BASE_URL}/auth/login`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ email, password }),
+  })
+
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(error.message || 'Đăng nhập thất bại')
+  }
+
+  return response.json()
 }
 
-export interface AuthResponse {
-  access_token: string;
-  token_type: string;
-}
-
-export interface UserProfile {
-  id: number;
-  email: string;
-  full_name: string;
-  role: string;
-  is_verified: boolean;
-  avatar_url?: string;
-}
-
-class AuthService {
-  async register(data: RegisterData): Promise<UserProfile> {
-    const response = await fetch(API_ENDPOINTS.REGISTER, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.detail || 'Đăng ký thất bại');
-    }
-    return response.json();
-  }
-
-  async login(data: LoginData): Promise<AuthResponse> {
-    const response = await fetch(API_ENDPOINTS.LOGIN, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.detail || 'Đăng nhập thất bại');
-    }
-
-    const result = await response.json();
-    if (result.access_token) {
-      localStorage.setItem('access_token', result.access_token);
-    }
-    return result;
-  }
-
-  async getProfile(): Promise<UserProfile> {
-    const token = localStorage.getItem('access_token');
-    const response = await fetch(API_ENDPOINTS.PROFILE, {
-      headers: { 'Authorization': `Bearer ${token}` },
-    });
-
-    if (!response.ok) throw new Error('Không thể lấy thông tin người dùng');
-    return response.json();
-  }
-
-  logout(): void {
-    localStorage.removeItem('access_token');
-  }
-
-  isAuthenticated(): boolean {
-    return !!localStorage.getItem('access_token');
-  }
-
-  getToken(): string | null {
-    return localStorage.getItem('access_token');
-  }
-}
-
-export const authService = new AuthService();
-export default authService;

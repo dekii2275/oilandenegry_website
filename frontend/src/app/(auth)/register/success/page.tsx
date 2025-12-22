@@ -1,6 +1,12 @@
 import SuccessNotification from '@/components/auth/SuccessNotification'
 
-export default function RegisterSuccessPage() {
+interface Props {
+  searchParams?: { email?: string }
+}
+
+export default function RegisterSuccessPage({ searchParams }: Props) {
+  const email = searchParams?.email
+
   return (
     <div 
       className="min-h-screen flex items-center justify-center bg-cover bg-center bg-no-repeat relative px-6 py-12"
@@ -12,7 +18,7 @@ export default function RegisterSuccessPage() {
       <div className="absolute inset-0 bg-black/20" />
       
       <div className="relative z-10 w-full">
-        <SuccessNotification variant="email" />
+        <SuccessNotification variant="email" email={email} />
       </div>
     </div>
   )

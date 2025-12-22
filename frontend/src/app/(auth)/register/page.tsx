@@ -1,4 +1,6 @@
 import RegisterForm from '@/components/auth/RegisterForm'
+import Link from 'next/link'
+import { ROUTES } from '@/constants/routes'
 
 export default function RegisterPage() {
   return (
@@ -42,6 +44,13 @@ export default function RegisterPage() {
             }}
           >
             <RegisterForm />
+
+              {/* Quick link to success page for testing */}
+              <div className="mt-4 text-center">
+                <Link href={ROUTES.REGISTER_SUCCESS} className="text-sm text-green-600 hover:underline">
+                  Xem trang thông báo đăng ký thành công
+                </Link>
+              </div>
           </div>
         </div>
       </div>

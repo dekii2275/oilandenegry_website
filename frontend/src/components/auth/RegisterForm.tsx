@@ -20,7 +20,7 @@ interface RegisterFormData {
 
 export default function RegisterForm() {
   const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [apiError, setApiError] = useState<string | null>(null)
   const router = useRouter()
   
   const {
@@ -33,15 +33,29 @@ export default function RegisterForm() {
 
   const onSubmit = async (data: RegisterFormData) => {
     setIsLoading(true)
-    setError(null)
+    setApiError(null)
     try {
       const { confirmPassword, ...registerData } = data
-      await authService.register(registerData)
-      // Redirect to success page
-      router.push(ROUTES.REGISTER_SUCCESS)
-    } catch (error: any) {
+      // eslint-disable-next-line no-console
+      console.log('Submitting registration:', registerData)
+      
+      const res = await registerUser(registerData)
+
+      // Debug log for development (helps track why navigation might not happen)
+      // eslint-disable-next-line no-console
+      console.log('registerUser response:', res)
+
+      // Redirect to success page — prefer replace so user doesn't go back to form
+      const emailParam = encodeURIComponent(registerData.email)
+      // eslint-disable-next-line no-console
+      console.log('Navigating to:', `${ROUTES.REGISTER_SUCCESS}?email=${emailParam}`)
+      
+      await router.replace(`${ROUTES.REGISTER_SUCCESS}?email=${emailParam}`)
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Đăng ký thất bại'
+      // eslint-disable-next-line no-console
       console.error('Registration error:', error)
-      setError(error.message || 'Đăng ký thất bại. Vui lòng thử lại!')
+      setApiError(errorMessage)
     } finally {
       setIsLoading(false)
     }
@@ -49,12 +63,12 @@ export default function RegisterForm() {
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="w-full space-y-3">
-      {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded text-sm">
-          {error}
+      {apiError && (
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg text-sm">
+          {apiError}
         </div>
       )}
-      
+
       <AuthInput
         {...register('email')}
         type="email"
