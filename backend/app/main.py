@@ -20,6 +20,8 @@ from app.api import admin as admin_router  # Thêm import
 from app.api import cart as cart_router  # Thêm import
 from app.api import orders as orders_router  # Thêm import
 from app.api import seller as seller_router  # Thêm import
+from app.api import stores as store_router  # Thêm import
+from app.api import products as product_router  # Thêm import
 # --- 3. KHỞI TẠO BẢNG DATABASE ---
 # Lệnh này sẽ tự động tạo bảng nếu chưa có (users, addresses...)
 user_model.Base.metadata.create_all(bind=engine) 
@@ -63,6 +65,8 @@ app.include_router(market_data_router.router, prefix="/api/market-data", tags=["
 app.include_router(cart_router.router, prefix="/api/cart", tags=["Cart"])  # Thêm router cart
 app.include_router(orders_router.router, prefix="/api/orders", tags=["Orders"])  # Thêm router orders
 app.include_router(seller_router.router, prefix="/api/seller", tags=["Seller"])  # Thêm router seller
+app.include_router(store_router.router, prefix="/api/stores", tags=["Stores"])  # Thêm router stores
+app.include_router(product_router.router, prefix="/api/products", tags=["Products"])  # Thêm router products
 # --- 6. ROOT ENDPOINT ---
 @app.get("/")
 def read_root():

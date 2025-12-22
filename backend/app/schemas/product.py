@@ -63,3 +63,32 @@ class VariantResponse(BaseModel):
 
 # Update forward reference
 ProductResponse.model_rebuild()
+
+class ProductPublicResponse(BaseModel):
+    """Schema cho Customer xem products (public)"""
+    id: int
+    store_id: int
+    store_name: Optional[str] = None  # Tên store
+    name: str
+    description: Optional[str] = None
+    category: Optional[str] = None
+    created_at: datetime
+    variants: List["VariantPublicResponse"] = []
+    
+    class Config:
+        from_attributes = True
+
+class VariantPublicResponse(BaseModel):
+    """Schema cho Customer xem variants (chỉ hiển thị variants active và có stock)"""
+    id: int
+    product_id: int
+    name: str
+    price: Decimal
+    stock: int
+    is_active: bool
+    
+    class Config:
+        from_attributes = True
+
+# Update forward reference
+ProductPublicResponse.model_rebuild()
