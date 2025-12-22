@@ -20,4 +20,4 @@ newspaper3k          # Để cào báo
 google-generativeai  # Để gọi Gemini AI
 apscheduler          # Để lên lịch chạy 12 tiếng/lần
 requests             # Thư viện hỗ trợ mạng
-lxml[html_clean]     # Hỗ trợ xử lý HTML cho newspaper3k
+lxml_html_clean   # Hỗ trợ xử lý HTML cho newspaper3k

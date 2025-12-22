@@ -63,7 +63,7 @@ def run_crawler_process():
     print(f"🚀 [AUTO-CRAWL] Bắt đầu tiến trình lúc {datetime.now()}...")
     db = SessionLocal()
     
-    url = "[https://cafef.vn/hang-hoa-nguyen-lieu.chn](https://cafef.vn/hang-hoa-nguyen-lieu.chn)"
+    url = "https://cafef.vn/hang-hoa-nguyen-lieu.chn"
     paper = newspaper.build(url, memoize_articles=False)
     
     count_new = 0
