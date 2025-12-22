@@ -19,7 +19,7 @@ from app.api import getdatafromyahoo as market_data_router
 from app.api import admin as admin_router  # Thêm import
 from app.api import cart as cart_router  # Thêm import
 from app.api import orders as orders_router  # Thêm import
-
+from app.api import seller as seller_router  # Thêm import
 # --- 3. KHỞI TẠO BẢNG DATABASE ---
 # Lệnh này sẽ tự động tạo bảng nếu chưa có (users, addresses...)
 user_model.Base.metadata.create_all(bind=engine) 
@@ -62,6 +62,7 @@ app.include_router(market_data_router.router, prefix="/api/market-data", tags=["
 
 app.include_router(cart_router.router, prefix="/api/cart", tags=["Cart"])  # Thêm router cart
 app.include_router(orders_router.router, prefix="/api/orders", tags=["Orders"])  # Thêm router orders
+app.include_router(seller_router.router, prefix="/api/seller", tags=["Seller"])  # Thêm router seller
 # --- 6. ROOT ENDPOINT ---
 @app.get("/")
 def read_root():
