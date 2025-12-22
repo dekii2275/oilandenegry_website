@@ -1,3 +1,4 @@
+# --- Các thư viện cũ của bạn ---
 fastapi
 uvicorn[standard]
 sqlalchemy
@@ -13,3 +14,10 @@ fastapi-mail
 websockets
 yfinance
 pandas
+
+# --- CÁC THƯ VIỆN CẦN BỔ SUNG (BẮT BUỘC) ---
+newspaper3k          # Để cào báo
+google-generativeai  # Để gọi Gemini AI
+apscheduler          # Để lên lịch chạy 12 tiếng/lần
+requests             # Thư viện hỗ trợ mạng
+lxml[html_clean]     # Hỗ trợ xử lý HTML cho newspaper3k
