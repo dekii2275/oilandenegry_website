@@ -9,7 +9,7 @@ from sqlalchemy import desc
 from datetime import datetime
 from apscheduler.schedulers.background import BackgroundScheduler # <--- Thư viện lên lịch
 from apscheduler.triggers.interval import IntervalTrigger     # <--- Bộ đếm thời gian
-
+from newspaper import Config
 from app.core.database import get_db, SessionLocal
 from app.models.news import News
 
@@ -64,32 +64,61 @@ def run_crawler_process():
     db = SessionLocal()
     
     url = "https://cafef.vn/hang-hoa-nguyen-lieu.chn"
-    paper = newspaper.build(url, memoize_articles=False)
     
+    # --- 1. CẤU HÌNH GIẢ LẬP TRÌNH DUYỆT (Fix lỗi bị chặn) ---
+    config = Config()
+    config.browser_user_agent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    config.request_timeout = 10
+    
+    try:
+        # Tải trang web với cấu hình giả lập
+        paper = newspaper.build(url, config=config, memoize_articles=False)
+        
+        # --- DEBUG: In ra số lượng bài tìm thấy ---
+        print(f"🔍 DEBUG: Tìm thấy tổng cộng {len(paper.articles)} link bài báo trên trang này.")
+        
+        if len(paper.articles) == 0:
+            print("⚠️ Cảnh báo: Không tìm thấy bài nào. Có thể trang web đã đổi cấu trúc hoặc chặn IP.")
+            return
+
+    except Exception as e:
+        print(f"❌ Lỗi kết nối đến báo: {e}")
+        return
+
     count_new = 0
-    keywords = ['dầu', 'xăng', 'điện', 'năng lượng', 'khí', 'gas', 'evn', 'pin', 'xanh']
+    # Thử nới lỏng từ khóa để test xem có bài nào lọt vào không
+    keywords = ['dầu', 'xăng', 'điện', 'năng lượng', 'khí', 'gas', 'evn', 'pin', 'xanh', 'giá']
     
-    # Lấy 5 bài mỗi lần chạy
-    for article in paper.articles[:5]:
+    # Tăng giới hạn duyệt lên 10 bài đầu tiên
+    for article in paper.articles[:10]:
         try:
             article.download()
             article.parse()
             
+            # Debug tiêu đề bài báo đang duyệt
+            print(f"👀 Đang xem xét: {article.title}")
+
+            # 1. Lọc từ khóa (Check title lower)
             if not any(k in article.title.lower() for k in keywords):
+                print(f"   -> Bỏ qua (Không chứa từ khóa năng lượng)")
                 continue
 
+            # 2. Check trùng link gốc
             if db.query(News).filter(News.original_url == article.url).first():
+                print(f"   -> Bỏ qua (Đã tồn tại trong DB)")
                 continue
 
             print(f"🤖 Đang xử lý AI bài: {article.title[:20]}...")
             
             ai_data = analyze_article_with_gemini(article.text, article.title)
             
+            # Fallback dữ liệu nếu AI lỗi
             summary = ai_data.get("summary", article.text[:200]) if ai_data else article.text[:200]
             content = ai_data.get("formatted_content", article.text) if ai_data else article.text
             category = ai_data.get("category", "Tin tức chung") if ai_data else "Tin tức chung"
             tags = ai_data.get("tags", "") if ai_data else ""
-
+            
+            # Lấy ngày (ưu tiên ngày báo, nếu không có lấy ngày giờ hiện tại)
             pub_date = article.publish_date if article.publish_date else datetime.now()
 
             new_news = News(
@@ -111,7 +140,8 @@ def run_crawler_process():
             db.commit()
             count_new += 1
             print(f"✅ Đã lưu: {article.title}")
-            time.sleep(3)
+            
+            time.sleep(3) # Nghỉ chút
             
         except Exception as e:
             print(f"⚠️ Lỗi bài báo: {e}")
