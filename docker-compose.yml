@@ -7,6 +7,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
+      # (Đã xóa POSTGRES_HOST ở đây vì không cần thiết)
     ports:
       - "5432:5432"
     volumes:
@@ -37,7 +38,15 @@ services:
     env_file:
       - .env
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      # --- SỬA TẠI ĐÂY (QUAN TRỌNG) ---
+      # Backend cần các biến này để khớp với file config.py của bạn
+      POSTGRES_HOST: postgres        # <-- Backend nhìn sang container "postgres"
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+
+      # Mongo
       MONGO_URL: mongodb://${MONGO_USER}:${MONGO_PASSWORD}@mongo:27017
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     ports:
@@ -55,7 +64,7 @@ services:
     depends_on:
       - backend
     environment:
-      NEXT_PUBLIC_API_URL: http://13.212.128.129:8001/api
+      NEXT_PUBLIC_API_URL: http://localhost:8001/api
     ports:
       - "3000:3000"
     volumes:
