@@ -38,3 +38,5 @@ Thumbs.db
 next-env.d.ts
 .venv/
 *.pdf
+node_modules/
+venv/
