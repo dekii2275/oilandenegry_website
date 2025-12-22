@@ -1,11 +1,11 @@
 import React from 'react'
 
 interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
-  error?: string
+  hasError?: boolean
 }
 
 const Input = React.forwardRef<HTMLInputElement, InputProps>(
-  ({ className = '', error, ...props }, ref) => {
+  ({ className = '', hasError, ...props }, ref) => {
     return (
       <div className="w-full">
         <input
@@ -15,14 +15,11 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
             bg-white
             focus:outline-none focus:ring-2 focus:ring-green-400 focus:border-green-400
             transition-colors
-            ${error ? 'border-red-500' : 'border-gray-300'}
+            ${hasError ? 'border-red-500' : 'border-gray-300'}
             ${className}
           `}
           {...props}
         />
-        {error && (
-          <p className="mt-1 text-sm text-red-500">{error}</p>
-        )}
       </div>
     )
   }
