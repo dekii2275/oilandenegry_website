@@ -80,5 +80,5 @@ class SellerOrderSummary(BaseModel):
     customer_name: Optional[str] = None
     items: List[SellerOrderItemResponse] = []
     
-    class Config:
+    class Config:ix
         from_attributes = True
