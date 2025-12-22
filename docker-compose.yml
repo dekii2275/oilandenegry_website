@@ -1,0 +1,55 @@
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: energy_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ./docker/db/init.sql:/docker-entrypoint-initdb.d/init.sql
+
+  mongo:
+    image: mongo:6.0
+    container_name: energy_mongo
+    restart: always
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD}
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+
+  backend:
+    build:
+      context: .
+      dockerfile: docker/backend/Dockerfile
+    container_name: energy_backend
+    restart: always
+    # Lệnh chạy server (lắng nghe 0.0.0.0 để bên ngoài vào được)
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    depends_on:
+      - postgres
+      - mongo
+    # --- ĐÂY LÀ PHẦN QUAN TRỌNG MỚI THÊM ---
+    # Dòng này giúp Backend đọc được MAIL_USERNAME, MAIL_PASSWORD từ file .env
+    env_file:
+      - .env
+    # ---------------------------------------
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      MONGO_URL: mongodb://${MONGO_USER}:${MONGO_PASSWORD}@mongo:27017
+    ports:
+      - "8001:8000"
+    volumes:
+      - ./app:/app/app
+
+volumes:
+  pg_data:
+  mongo_data:
