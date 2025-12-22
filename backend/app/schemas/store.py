@@ -47,3 +47,19 @@ class SellerWithStoreResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+class StorePublicResponse(BaseModel):
+    """Schema cho Customer xem store"""
+    id: int
+    store_name: str
+    store_description: Optional[str] = None
+    phone_number: Optional[str] = None
+    address: Optional[str] = None
+    city: Optional[str] = None
+    district: Optional[str] = None
+    ward: Optional[str] = None
+    created_at: datetime
+    product_count: Optional[int] = 0  # Số lượng products của store
+    
+    class Config:
+        from_attributes = True
