@@ -1,0 +1,33 @@
+from sqlalchemy import Column, Integer, String, Boolean, TIMESTAMP
+from sqlalchemy.sql import func
+from app.core.database import Base
+from pydantic import BaseModel, EmailStr
+from sqlalchemy.orm import relationship
+
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String, unique=True, index=True, nullable=False)
+    hashed_password = Column(String, nullable=False)
+    full_name = Column(String)
+    role = Column(String, default="CUSTOMER")
+    is_verified = Column(Boolean, default=False)
+    is_approved = Column(Boolean, default=False)  # Dùng cho seller approval
+    created_at = Column(TIMESTAMP, server_default=func.now())
+    avatar_url = Column(String, nullable=True)
+    addresses = relationship("app.models.address.Address", back_populates="owner")
+    store = relationship("app.models.store.Store", back_populates="owner", uselist=False)  # Thêm relationship với Store
+    cart = relationship("Cart", back_populates="user", uselist=False)  # Thêm relationship với Cart
+    orders = relationship("Order", back_populates="user")  # Thêm relationship với Order
+
+
+# 1. Dữ liệu gửi lên khi Đăng nhập
+class UserLogin(BaseModel):
+    email: EmailStr
+    password: str
+
+# 2. Dữ liệu Token trả về khi đăng nhập thành công
+class Token(BaseModel):
+    access_token: str
+    token_type: str
