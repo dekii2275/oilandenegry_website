@@ -8,21 +8,18 @@ import CircleCheckbox from "@/components/ui/CircleCheckbox";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 
-// Interface cho Category
 interface Category {
   id: number;
   name: string;
   slug?: string;
 }
 
-// Interface cho Supplier
 interface Supplier {
   id: number;
   name: string;
   logo?: string;
 }
 
-// Interface cho Product
 interface Product {
   id: number;
   name: string;
@@ -34,9 +31,10 @@ interface Product {
   oldPrice?: number;
   unit?: string;
   image: string;
+  store_name?: string;
+  variants?: any[];
 }
 
-// Các option sắp xếp
 const sortOptions = [
   { value: "default", label: "Mặc định" },
   { value: "price-asc", label: "Giá: Thấp đến cao" },
@@ -61,7 +59,6 @@ export default function ProductsPage() {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Hàm xử lý sắp xếp
   const handleSort = (optionValue: string) => {
     const selectedOption = sortOptions.find((opt) => opt.value === optionValue);
     if (selectedOption) {
@@ -71,7 +68,6 @@ export default function ProductsPage() {
     console.log("Sắp xếp theo:", optionValue);
   };
 
-  // Đóng dropdown khi click ra ngoài
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as HTMLElement;
@@ -86,33 +82,69 @@ export default function ProductsPage() {
     };
   }, [isSortOpen]);
 
-  // Fetch data từ backend
   useEffect(() => {
     const fetchData = async () => {
       try {
         setLoading(true);
         setError(null);
 
+        // URL backend
         const baseUrl =
-          process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000/api";
+          process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001";
 
-        const [categoriesRes, suppliersRes, productsRes] = await Promise.all([
-          fetch(`${baseUrl}/categories`),
-          fetch(`${baseUrl}/suppliers`),
-          fetch(`${baseUrl}/products`),
-        ]);
+        const productsRes = await fetch(`${baseUrl}/api/products?limit=12`);
 
-        if (!categoriesRes.ok || !suppliersRes.ok || !productsRes.ok) {
+        if (!productsRes.ok) {
           throw new Error("Không thể kết nối đến backend");
         }
 
-        const categoriesData = await categoriesRes.json();
-        const suppliersData = await suppliersRes.json();
-        const productsData = await productsRes.json();
+        const backendProducts = await productsRes.json();
 
-        setCategories(categoriesData.data || categoriesData);
-        setSuppliers(suppliersData.data || suppliersData);
-        setProducts(productsData.data || productsData);
+        const transformedProducts: Product[] = backendProducts.map(
+          (backendProduct: any) => {
+            // Tính giá thấp nhất và cao nhất từ variants
+            const prices = backendProduct.variants.map((v: any) => v.price);
+            const minPrice = Math.min(...prices);
+            const maxPrice = Math.max(...prices);
+
+            // Xác định status dựa trên stock
+            const totalStock = backendProduct.variants.reduce(
+              (sum: number, v: any) => sum + v.stock,
+              0
+            );
+            let status: "CÓ SẴN" | "HOT" | "BÁN SỈ" | undefined;
+            if (totalStock > 10) status = "CÓ SẴN";
+            else if (totalStock > 5) status = "HOT";
+            else if (totalStock > 0) status = "BÁN SỈ";
+
+            return {
+              id: backendProduct.id,
+              name: backendProduct.name,
+              brand: backendProduct.store_name || "Unknown",
+              status: status,
+              category: backendProduct.category,
+              description: backendProduct.description,
+              price: minPrice,
+              oldPrice: maxPrice > minPrice ? maxPrice : undefined,
+              unit: "chiếc",
+              image: "/api/placeholder/400/300",
+              store_name: backendProduct.store_name,
+              variants: backendProduct.variants,
+            };
+          }
+        );
+
+        const uniqueCategories = Array.from(
+          new Set(backendProducts.map((p: any) => p.category).filter(Boolean))
+        ).map((cat, idx) => ({ id: idx + 1, name: cat as string }));
+
+        const uniqueSuppliers = Array.from(
+          new Set(backendProducts.map((p: any) => p.store_name).filter(Boolean))
+        ).map((supplier, idx) => ({ id: idx + 1, name: supplier as string }));
+
+        setCategories(uniqueCategories);
+        setSuppliers(uniqueSuppliers);
+        setProducts(transformedProducts);
       } catch (err) {
         console.error("Lỗi khi tải dữ liệu:", err);
         setError("Không thể tải dữ liệu từ server");
@@ -231,14 +263,14 @@ export default function ProductsPage() {
             <input
               type="text"
               placeholder="Tìm kiếm sản phẩm, danh mục..."
-              className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 bg-white"
+              className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-green-500 bg-white"
             />
           </div>
         </div>
 
         {/* Hiển thị lỗi nếu có */}
         {error && (
-          <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+          <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-[25px]">
             <p className="text-yellow-800">
               {error} (Đang sử dụng dữ liệu mẫu)
             </p>
@@ -275,25 +307,25 @@ export default function ProductsPage() {
             </div>
 
             {/* Price Range */}
-            <div className="bg-white rounded-lg p-6 shadow space-y-4">
+            <div className="bg-white rounded-[25px] p-6 shadow space-y-4">
               <h3 className="font-semibold">Khoảng giá</h3>
               <div className="flex gap-2">
                 <input
                   placeholder="$Min"
-                  className="w-1/2 border rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-green-500"
+                  className="w-1/2 border rounded-full px-3 py-2 focus:outline-none focus:ring-1 focus:ring-green-500"
                 />
                 <input
                   placeholder="$Max"
-                  className="w-1/2 border rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-green-500"
+                  className="w-1/2 border rounded-full px-3 py-2 focus:outline-none focus:ring-1 focus:ring-green-500"
                 />
               </div>
-              <button className="w-full bg-green-100 text-green-700 py-2 rounded-lg font-semibold hover:bg-green-200 transition">
+              <button className="w-full bg-green-100 text-green-700 py-2 rounded-full font-semibold hover:bg-green-200 transition">
                 Áp dụng
               </button>
             </div>
 
             {/* Suppliers */}
-            <div className="bg-white rounded-lg p-6 shadow-sm">
+            <div className="bg-white rounded-[25px] p-6 shadow-sm">
               <h3 className="font-semibold mb-4">Nhà cung cấp</h3>
               {suppliers.length > 0 ? (
                 <>
@@ -316,7 +348,7 @@ export default function ProductsPage() {
             </div>
 
             {/* Promotion Banner */}
-            <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-lg p-6 text-white">
+            <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-[25px] p-6 text-white">
               <div className="text-sm font-medium text-green-400 mb-2">
                 ƯU ĐÃI ĐẶC BIỆT
               </div>
@@ -335,7 +367,7 @@ export default function ProductsPage() {
           {/* Main Content */}
           <main className="flex-1">
             {/* Sort Bar */}
-            <div className="bg-white rounded-lg shadow-sm p-4 mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="bg-white rounded-[25px] shadow-sm p-4 mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <div className="text-sm text-gray-600">
                 Hiển thị{" "}
                 <span className="font-semibold text-gray-900">
@@ -356,7 +388,7 @@ export default function ProductsPage() {
                 {/* Dropdown sắp xếp */}
                 <div className="relative sort-dropdown-container">
                   <button
-                    className="flex items-center space-x-2 px-4 py-2 border border-gray-300 rounded-lg hover:border-green-500 transition bg-white min-w-[180px] justify-between"
+                    className="flex items-center space-x-2 px-4 py-2 border border-gray-300 rounded-[25px] hover:border-green-500 transition bg-white min-w-[180px] justify-between"
                     onClick={() => setIsSortOpen(!isSortOpen)}
                   >
                     <span className="text-sm text-gray-700">{sortBy}</span>
@@ -369,7 +401,7 @@ export default function ProductsPage() {
 
                   {/* Dropdown menu */}
                   {isSortOpen && (
-                    <div className="absolute top-full left-0 mt-1 w-full bg-white border border-gray-300 rounded-lg shadow-lg z-50 max-h-80 overflow-y-auto">
+                    <div className="absolute top-full left-0 mt-1 w-full bg-white border border-gray-300 rounded-[25px] shadow-lg z-50 max-h-80 overflow-y-auto">
                       {sortOptions.map((option) => (
                         <button
                           key={option.value}
@@ -413,7 +445,7 @@ export default function ProductsPage() {
               {products.length > 0 ? (
                 products.map((product: Product) => (
                   <Link key={product.id} href={`/products/${product.id}`}>
-                    <div className="bg-white rounded-lg overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 group cursor-pointer">
+                    <div className="bg-white rounded-[25px] overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 group cursor-pointer">
                       {/* Ảnh sản phẩm */}
                       <div className="relative overflow-hidden bg-gray-100">
                         <img
@@ -507,7 +539,7 @@ export default function ProductsPage() {
                 ))
               ) : (
                 <div className="col-span-full text-center py-12">
-                  <div className="bg-white rounded-lg p-8 shadow-sm">
+                  <div className="bg-white rounded-[25px] p-8 shadow-sm">
                     <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gray-100 flex items-center justify-center">
                       <svg
                         className="w-8 h-8 text-gray-400"
@@ -539,22 +571,22 @@ export default function ProductsPage() {
             {/* Pagination */}
             <div className="mt-8 flex justify-center items-center space-x-2">
               <button
-                className="w-10 h-10 flex items-center justify-center border border-gray-300 rounded-lg hover:border-green-500 hover:bg-green-50 transition"
+                className="w-10 h-10 flex items-center justify-center border border-gray-300 rounded-[25px] hover:border-green-500 hover:bg-green-50 transition"
                 onClick={() => console.log("Previous page")}
               >
                 <span className="text-gray-600">←</span>
               </button>
-              <button className="w-10 h-10 flex items-center justify-center bg-green-600 text-white rounded-lg font-medium shadow-sm">
+              <button className="w-10 h-10 flex items-center justify-center bg-green-600 text-white rounded-[25px] font-medium shadow-sm">
                 1
               </button>
               <button
-                className="w-10 h-10 flex items-center justify-center border border-gray-300 rounded-lg hover:border-green-500 hover:bg-green-50 transition"
+                className="w-10 h-10 flex items-center justify-center border border-gray-300 rounded-[25px] hover:border-green-500 hover:bg-green-50 transition"
                 onClick={() => console.log("Page 2")}
               >
                 <span className="text-gray-600">2</span>
               </button>
               <button
-                className="w-10 h-10 flex items-center justify-center border border-gray-300 rounded-lg hover:border-green-500 hover:bg-green-50 transition"
+                className="w-10 h-10 flex items-center justify-center border border-gray-300 rounded-[25px] hover:border-green-500 hover:bg-green-50 transition"
                 onClick={() => console.log("Next page")}
               >
                 <span className="text-gray-600">→</span>
