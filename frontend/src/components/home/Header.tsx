@@ -107,9 +107,9 @@ export default function Header() {
         {mobileMenuOpen && (
           <nav className="md:hidden pb-4 flex flex-col gap-3 border-t">
             <Link href="/" className="pt-3">Trang chủ</Link>
-            <Link href="#">Về chúng tôi</Link>
-            <Link href="#">Sản phẩm</Link>
-            <Link href="#">Tin tức</Link>
+            <Link href="/about">Về chúng tôi</Link>
+            <Link href="/products">Sản phẩm</Link>
+            <Link href="/products">Tin tức</Link>
 
             {!isLoggedIn ? (
               <>
