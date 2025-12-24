@@ -3,7 +3,7 @@
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { loginSchema } from '@/lib/validators/auth'
-import authService from '@/services/auth.service'
+import { loginUser } from '@/services/auth.service'
 import AuthInput from './AuthInput'
 import AuthButton from './AuthButton'
 import { useState } from 'react'
@@ -18,7 +18,6 @@ interface LoginFormData {
 
 export default function LoginForm() {
   const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const [rememberMe, setRememberMe] = useState(false)
   const router = useRouter()
   
@@ -32,14 +31,13 @@ export default function LoginForm() {
 
   const onSubmit = async (data: LoginFormData) => {
     setIsLoading(true)
-    setError(null)
     try {
-      await authService.login(data)
+      await loginUser(data.email, data.password)
       // Redirect to dashboard
       router.push(ROUTES.DASHBOARD)
-    } catch (error: any) {
+    } catch (error) {
       console.error('Login error:', error)
-      setError(error.message || 'Đăng nhập thất bại. Vui lòng thử lại!')
+      // Handle error (show toast, etc.)
     } finally {
       setIsLoading(false)
     }
@@ -47,12 +45,6 @@ export default function LoginForm() {
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-      {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded text-sm">
-          {error}
-        </div>
-      )}
-      
       <AuthInput
         {...register('email')}
         type="text"

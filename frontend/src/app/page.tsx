@@ -1,3 +1,5 @@
+'use client'
+
 import Header from '@/components/home/Header'
 import HeroSection from '@/components/home/HeroSection'
 import MarketPrices from '@/components/home/MarketPrices'
@@ -8,8 +10,12 @@ import WhyEnergyMarket from '@/components/home/WhyEnergyMarket'
 import VerifiedSuppliers from '@/components/home/VerifiedSuppliers'
 import NewsEvents from '@/components/home/NewsEvents'
 import Footer from '@/components/home/Footer'
+import { useLatestNews } from '@/hooks/use-news'
 
 export default function HomePage() {
+  // Fetch news data từ backend (hook sẽ tự handle fallback)
+  const { news: newsData } = useLatestNews(3)
+
   return (
     <div className="min-h-screen flex flex-col bg-white">
       <Header />
@@ -21,9 +27,11 @@ export default function HomePage() {
         <SolutionsSection />
         <WhyEnergyMarket />
         <VerifiedSuppliers />
-        <NewsEvents />
+        <NewsEvents newsData={newsData} />
       </main>
       <Footer />
     </div>
   )
 }
+
+

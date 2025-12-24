@@ -55,10 +55,10 @@ export default function Footer() {
               Nền tảng
             </h4>
             <ul className="space-y-2 text-sm">
-              <li><Link href="#" className="hover:text-emerald-400">Thị trường</Link></li>
-              <li><Link href="#" className="hover:text-emerald-400">Nhà cung cấp</Link></li>
-              <li><Link href="#" className="hover:text-emerald-400">Vận chuyển</Link></li>
-              <li><Link href="#" className="hover:text-emerald-400">Bảng giá</Link></li>
+              <li><Link href="/products" className="hover:text-emerald-400">Thị trường</Link></li>
+              <li><Link href="/products" className="hover:text-emerald-400">Nhà cung cấp</Link></li>
+              <li><Link href="/products" className="hover:text-emerald-400">Vận chuyển</Link></li>
+              <li><Link href="/products" className="hover:text-emerald-400">Bảng giá</Link></li>
             </ul>
           </div>
 
@@ -68,10 +68,10 @@ export default function Footer() {
               Về chúng tôi
             </h4>
             <ul className="space-y-2 text-sm">
-              <li><Link href="#" className="hover:text-emerald-400">Câu chuyện</Link></li>
-              <li><Link href="#" className="hover:text-emerald-400">Đội ngũ</Link></li>
-              <li><Link href="#" className="hover:text-emerald-400">Tuyển dụng</Link></li>
-              <li><Link href="#" className="hover:text-emerald-400">Liên hệ</Link></li>
+              <li><Link href="/about" className="hover:text-emerald-400">Câu chuyện</Link></li>
+              <li><Link href="/about" className="hover:text-emerald-400">Đội ngũ</Link></li>
+              <li><Link href="/about" className="hover:text-emerald-400">Tuyển dụng</Link></li>
+              <li><Link href="/about" className="hover:text-emerald-400">Liên hệ</Link></li>
             </ul>
           </div>
 
@@ -81,9 +81,9 @@ export default function Footer() {
               Pháp lý
             </h4>
             <ul className="space-y-2 text-sm">
-              <li><Link href="#" className="hover:text-emerald-400">Điều khoản sử dụng</Link></li>
-              <li><Link href="#" className="hover:text-emerald-400">Chính sách bảo mật</Link></li>
-              <li><Link href="#" className="hover:text-emerald-400">Tuân thủ</Link></li>
+              <li><Link href="/about" className="hover:text-emerald-400">Điều khoản sử dụng</Link></li>
+              <li><Link href="/about" className="hover:text-emerald-400">Chính sách bảo mật</Link></li>
+              <li><Link href="/about" className="hover:text-emerald-400">Tuân thủ</Link></li>
             </ul>
           </div>
         </div>

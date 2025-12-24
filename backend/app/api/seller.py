@@ -1,7 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from typing import List, Tuple
-from decimal import Decimal
+from typing import List, Tuple, Optional, Query
 
 from app.core.database import get_db
 from app.models.users import User
@@ -12,6 +11,8 @@ from app.schemas.product import (
     VariantCreate, VariantUpdate, VariantResponse
 )
 from app.api.deps import get_current_seller
+from app.models.order import Order, OrderItem, OrderStatus
+from app.schemas.order import SellerOrderSummary, SellerOrderItemResponse
 
 router = APIRouter()
 
@@ -344,3 +345,82 @@ def get_product_variants(
     variants = db.query(Variant).filter(Variant.product_id == product_id).all()
     
     return variants
+
+# ========== ORDERS FOR SELLER ==========
+
+@router.get("/orders", response_model=List[SellerOrderSummary])
+def get_seller_orders(
+    status: Optional[str] = Query(
+        None,
+        description="Lọc theo trạng thái đơn hàng: PLACED, PENDING_CONFIRM, SHIPPING, DELIVERED, CANCELLED, ..."
+    ),
+    current_user_store: Tuple[User, Store] = Depends(get_current_seller),
+    db: Session = Depends(get_db)
+):
+    """
+    Seller xem tất cả các đơn hàng chứa sản phẩm của store mình.
+    Có thể lọc theo trạng thái:
+    - PLACED           : Đơn mới (chờ xác nhận)
+    - PENDING_CONFIRM  : Đang chờ xác nhận thêm
+    - SHIPPING         : Đang vận chuyển
+    - DELIVERED        : Giao thành công
+    - CANCELLED        : Đã hủy
+    """
+    current_user, store = current_user_store
+
+    # Tìm tất cả orders có chứa sản phẩm thuộc store này
+    query = (
+        db.query(Order)
+        .join(OrderItem, OrderItem.order_id == Order.id)
+        .join(Variant, Variant.id == OrderItem.variant_id)
+        .join(Product, Product.id == Variant.product_id)
+        .filter(Product.store_id == store.id)
+        .distinct()
+    )
+
+    if status:
+        query = query.filter(Order.status == status)
+
+    orders = query.order_by(Order.created_at.desc()).all()
+
+    summaries: List[SellerOrderSummary] = []
+
+    for order in orders:
+        # Lấy các item trong order này nhưng chỉ của store hiện tại
+        order_items = (
+            db.query(OrderItem)
+            .join(Variant, Variant.id == OrderItem.variant_id)
+            .join(Product, Product.id == Variant.product_id)
+            .filter(
+                OrderItem.order_id == order.id,
+                Product.store_id == store.id,
+            )
+            .all()
+        )
+
+        item_responses = [
+            SellerOrderItemResponse(
+                order_item_id=item.id,
+                product_name=item.product_name,
+                variant_name=item.variant_name,
+                price=item.price,
+                quantity=item.quantity,
+                line_total=item.line_total,
+            )
+            for item in order_items
+        ]
+
+        summaries.append(
+            SellerOrderSummary(
+                order_id=order.id,
+                status=order.status,
+                total=order.total,
+                created_at=order.created_at,
+                customer_email=order.user.email if order.user else "",
+                customer_name=order.user.full_name if order.user else None,
+                items=item_responses,
+            )
+        )
+
+    return summaries
+    

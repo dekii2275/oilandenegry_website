@@ -1,45 +1,125 @@
-import { RegisterPayload } from '@/types/auth'
+/**
+ * Auth Service
+ * Service để handle authentication operations
+ */
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api'
+import { apiClient } from '@/lib/api-client'
+import { API_ENDPOINTS } from '@/lib/api'
+import type { RegisterPayload, LoginPayload, AuthResponse } from '@/types/auth'
 
-export const registerUser = async (payload: RegisterPayload) => {
-  const response = await fetch(`${API_BASE_URL}/auth/register`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  })
+export const authService = {
+  /**
+   * Đăng ký user mới
+   */
+  async register(payload: RegisterPayload): Promise<AuthResponse | { success: boolean }> {
+    try {
+      const response = await apiClient.post<AuthResponse | { success: boolean }>(
+        API_ENDPOINTS.AUTH.REGISTER,
+        payload
+      )
+      return response
+    } catch (error) {
+      console.error('Error registering user:', error)
+      throw error
+    }
+  },
 
-  if (!response.ok) {
-    const error = await response.json()
-    throw new Error(error.message || 'Đăng ký thất bại')
-  }
+  /**
+   * Đăng nhập
+   */
+  async login(payload: LoginPayload): Promise<AuthResponse> {
+    try {
+      const response = await apiClient.post<AuthResponse>(
+        API_ENDPOINTS.AUTH.LOGIN,
+        payload
+      )
+      
+      // Lưu token vào localStorage nếu có
+      if (response.token && typeof window !== 'undefined') {
+        localStorage.setItem('access_token', response.token)
+        if (response.user) {
+          localStorage.setItem('user', JSON.stringify(response.user))
+        }
+      }
+      
+      return response
+    } catch (error) {
+      console.error('Error logging in:', error)
+      throw error
+    }
+  },
 
-  // Some APIs may return no JSON body on success (204 or plain text). Try to parse JSON,
-  // but fall back to a simple success flag so callers can reliably navigate on success.
-  const contentType = response.headers.get('content-type') || ''
-  if (contentType.includes('application/json')) {
-    return response.json()
-  }
+  /**
+   * Đăng xuất
+   */
+  async logout(): Promise<void> {
+    try {
+      // Gọi API logout nếu có
+      try {
+        await apiClient.post(API_ENDPOINTS.AUTH.LOGOUT)
+      } catch (e) {
+        // Nếu API chưa có, chỉ cần clear localStorage
+      }
+    } finally {
+      // Luôn clear localStorage
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('access_token')
+        localStorage.removeItem('user')
+      }
+    }
+  },
 
-  return { success: true }
+  /**
+   * Lấy thông tin user hiện tại
+   */
+  async getCurrentUser(): Promise<any> {
+    try {
+      return await apiClient.get(API_ENDPOINTS.USERS.ME)
+    } catch (error) {
+      console.error('Error fetching current user:', error)
+      throw error
+    }
+  },
+
+  /**
+   * Quên mật khẩu
+   */
+  async forgotPassword(email: string): Promise<{ message: string }> {
+    try {
+      return await apiClient.post(API_ENDPOINTS.AUTH.FORGOT_PASSWORD, { email })
+    } catch (error) {
+      console.error('Error requesting password reset:', error)
+      throw error
+    }
+  },
+
+  /**
+   * Reset mật khẩu
+   */
+  async resetPassword(token: string, password: string): Promise<{ message: string }> {
+    try {
+      return await apiClient.post(API_ENDPOINTS.AUTH.RESET_PASSWORD, { token, password })
+    } catch (error) {
+      console.error('Error resetting password:', error)
+      throw error
+    }
+  },
+
+  /**
+   * Verify email
+   */
+  async verifyEmail(token: string): Promise<{ message: string }> {
+    try {
+      return await apiClient.get(`${API_ENDPOINTS.AUTH.VERIFY_EMAIL}?token=${token}`)
+    } catch (error) {
+      console.error('Error verifying email:', error)
+      throw error
+    }
+  },
 }
 
-export const loginUser = async (email: string, password: string) => {
-  const response = await fetch(`${API_BASE_URL}/auth/login`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ email, password }),
-  })
-
-  if (!response.ok) {
-    const error = await response.json()
-    throw new Error(error.message || 'Đăng nhập thất bại')
-  }
-
-  return response.json()
-}
+// Export alias để backward compatibility
+export const registerUser = authService.register
+export const loginUser = (email: string, password: string) => 
+  authService.login({ email, password })
 

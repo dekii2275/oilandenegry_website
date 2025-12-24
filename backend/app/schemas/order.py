@@ -57,3 +57,28 @@ class OrderDetailResponse(OrderResponse):
     
     class Config:
         from_attributes = True
+
+class SellerOrderItemResponse(BaseModel):
+    """Schema cho Seller xem order items"""
+    order_item_id: int
+    product_name: str
+    variant_name: str
+    price: Decimal
+    quantity: int
+    line_total: Decimal
+    
+    class Config:
+        from_attributes = True
+
+class SellerOrderSummary(BaseModel):
+    """Schema cho Seller xem danh sách đơn hàng"""
+    order_id: int
+    status: str
+    total: Decimal
+    created_at: datetime
+    customer_email: str
+    customer_name: Optional[str] = None
+    items: List[SellerOrderItemResponse] = []
+    
+    class Config:
+        from_attributes = True

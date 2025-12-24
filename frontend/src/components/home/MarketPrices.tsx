@@ -1,3 +1,5 @@
+import Link from 'next/link'
+
 export default function MarketPrices() {
   const prices = [
     {
@@ -35,9 +37,9 @@ export default function MarketPrices() {
       <div className="max-w-5xl mx-auto px-6 md:px-8">
         <div className="flex justify-between items-center mb-8">
           <h2 className="text-2xl font-bold text-gray-900">Tỷ giá thị trường trực tuyến</h2>
-          <a href="#" className="text-teal-600 hover:text-teal-700 font-semibold text-sm">
+          <Link href="/products" className="text-teal-600 hover:text-teal-700 font-semibold text-sm">
             Xem báo cáo chi tiết dự dự →
-          </a>
+          </Link>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
