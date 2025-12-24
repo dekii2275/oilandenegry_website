@@ -108,13 +108,6 @@ def create_order(
     db: Session = Depends(get_db)
 ):
     """Tạo order từ cart"""
-    # Validate role
-    if current_user.role != "CUSTOMER":
-        raise HTTPException(
-            status_code=403,
-            detail="Chỉ Customer mới có thể đặt hàng"
-        )
-    
     # Validate address
     address = db.query(Address).filter(
         Address.id == order_in.address_id,
@@ -130,61 +123,36 @@ def create_order(
     if not cart.items:
         raise HTTPException(status_code=400, detail="Giỏ hàng trống")
     
-    # Validate và tính toán
+    # Validate stock trước khi tạo order
+    for item in cart.items:
+        variant = db.query(Variant).filter(Variant.id == item.variant_id).first()
+        if not variant or variant.stock < item.quantity:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Sản phẩm không đủ tồn kho"
+            )
+    
+    # Tính toán
     subtotal = Decimal(0)
-    order_items_data = []
-    errors = []
+    for item in cart.items:
+        variant = db.query(Variant).filter(Variant.id == item.variant_id).first()
+        subtotal += variant.price * item.quantity
     
-    for cart_item in cart.items:
-        variant = db.query(Variant).filter(Variant.id == cart_item.variant_id).first()
-        if not variant or not variant.is_active:
-            errors.append(f"Sản phẩm variant_id={cart_item.variant_id} không còn bán")
-            continue
-        
-        if variant.stock < cart_item.quantity:
-            errors.append(f"Sản phẩm {variant.name} không đủ tồn kho (cần {cart_item.quantity}, có {variant.stock})")
-            continue
-        
-        product = db.query(Product).filter(Product.id == variant.product_id).first()
-        if not product:
-            errors.append(f"Không tìm thấy product cho variant_id={cart_item.variant_id}")
-            continue
-        
-        # Tính lại giá tại thời điểm checkout
-        price = variant.price
-        line_total = price * cart_item.quantity
-        subtotal += line_total
-        
-        order_items_data.append({
-            "variant": variant,
-            "product": product,
-            "quantity": cart_item.quantity,
-            "price": price,
-            "line_total": line_total
-        })
-    
-    if errors:
-        raise HTTPException(
-            status_code=400,
-            detail={"errors": errors}
-        )
-    
-    # Tính discount và shipping
     discount = calculate_discount(order_in.voucher_code, subtotal)
     shipping_fee = calculate_shipping_fee(order_in.shipping_method, subtotal)
     total = subtotal - discount + shipping_fee
     
-    # Xác định status ban đầu
+    # Xác định initial status
     if order_in.payment_method == PaymentMethod.COD.value:
-        order_status = OrderStatus.PLACED.value
+        initial_status = OrderStatus.PLACED.value
     else:
-        order_status = OrderStatus.PENDING_PAYMENT.value
+        initial_status = OrderStatus.PLACED.value
     
     # Tạo Order
     new_order = Order(
         user_id=current_user.id,
         address_id=order_in.address_id,
-        status=order_status,
+        status=initial_status,
         payment_method=order_in.payment_method,
         shipping_method=order_in.shipping_method,
         subtotal=subtotal,
@@ -194,64 +162,73 @@ def create_order(
         note=order_in.note,
         voucher_code=order_in.voucher_code
     )
-    
     db.add(new_order)
-    db.flush()  # Để lấy order.id
+    db.flush()
     
-    # Tạo OrderItems
-    for item_data in order_items_data:
+    # Tạo OrderItems và trừ stock
+    order_items = []
+    for item in cart.items:
+        variant = db.query(Variant).filter(Variant.id == item.variant_id).first()
+        product = db.query(Product).filter(Product.id == variant.product_id).first()
+        
         order_item = OrderItem(
             order_id=new_order.id,
-            variant_id=item_data["variant"].id,
-            product_name=item_data["product"].name,
-            variant_name=item_data["variant"].name,
-            price=item_data["price"],
-            quantity=item_data["quantity"],
-            line_total=item_data["line_total"]
+            variant_id=item.variant_id,
+            product_name=product.name,
+            variant_name=variant.name,
+            price=variant.price,
+            quantity=item.quantity,
+            line_total=variant.price * item.quantity
         )
-        db.add(order_item)
         
         # Trừ stock
-        item_data["variant"].stock -= item_data["quantity"]
+        variant.stock -= item.quantity
+        
+        db.add(order_item)
+        order_items.append(order_item)
     
-    # Clear cart
-    db.query(CartItem).filter(CartItem.cart_id == cart.id).delete()
+    # Xóa cart items
+    for item in cart.items:
+        db.delete(item)
     
     db.commit()
     db.refresh(new_order)
     
-    # Load items để trả về
-    items = db.query(OrderItem).filter(OrderItem.order_id == new_order.id).all()
+    for item in order_items:
+        db.refresh(item)
     
+    # Build response
     return OrderResponse(
         order_id=new_order.id,
+        user_id=new_order.user_id,
+        address_id=new_order.address_id,
         status=new_order.status,
+        payment_method=new_order.payment_method,
+        shipping_method=new_order.shipping_method,
+        subtotal=new_order.subtotal,
+        discount=new_order.discount,
+        shipping_fee=new_order.shipping_fee,
         total=new_order.total,
+        note=new_order.note,
+        voucher_code=new_order.voucher_code,
+        payment_url=new_order.payment_url,
         created_at=new_order.created_at,
-        items=[OrderItemResponse.from_orm(item) for item in items]
+        updated_at=new_order.updated_at,
+        items=[
+            OrderItemResponse(
+                id=item.id,
+                order_id=item.order_id,
+                variant_id=item.variant_id,
+                product_name=item.product_name,
+                variant_name=item.variant_name,
+                price=item.price,
+                quantity=item.quantity,
+                line_total=item.line_total
+            )
+            for item in order_items
+        ]
     )
-
-# GET /api/orders/me - Lấy danh sách đơn hàng của tôi
-@router.get("/me", response_model=List[OrderResponse])
-def get_my_orders(
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """Lấy danh sách đơn hàng của user hiện tại"""
-    orders = db.query(Order).filter(Order.user_id == current_user.id).order_by(Order.created_at.desc()).all()
-    
-    result = []
-    for order in orders:
-        items = db.query(OrderItem).filter(OrderItem.order_id == order.id).all()
-        result.append(OrderResponse(
-            order_id=order.id,
-            status=order.status,
-            total=order.total,
-            created_at=order.created_at,
-            items=[OrderItemResponse.from_orm(item) for item in items]
-        ))
-    
-    return result
+                
 
 # GET /api/orders/{order_id} - Xem chi tiết đơn hàng
 @router.get("/{order_id}", response_model=OrderDetailResponse)
@@ -286,4 +263,75 @@ def get_order_detail(
         note=order.note,
         voucher_code=order.voucher_code,
         payment_url=order.payment_url
+    )
+
+
+@router.put("/{order_id}/cancel", response_model=OrderResponse)
+def cancel_order(
+    order_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Customer hủy đơn hàng khi còn ở trạng thái chờ xử lý (PLACED/PENDING_CONFIRM).
+    Hoàn lại tồn kho cho các variant trong đơn.
+    """
+    order = db.query(Order).filter(
+        Order.id == order_id,
+        Order.user_id == current_user.id
+    ).first()
+
+    if not order:
+        raise HTTPException(status_code=404, detail="Không tìm thấy đơn hàng")
+
+    # Cho phép hủy khi trạng thái là PLACED hoặc PENDING_CONFIRM (nếu enum có)
+    allowed_pending = {OrderStatus.PLACED}
+    if hasattr(OrderStatus, "PENDING_CONFIRM"):
+        allowed_pending.add(OrderStatus.PENDING_CONFIRM)
+
+    if order.status not in allowed_pending:
+        raise HTTPException(status_code=400, detail="Chỉ có thể hủy đơn hàng đang chờ xử lý")
+
+    # Hoàn lại stock cho các item
+    items = db.query(OrderItem).filter(OrderItem.order_id == order.id).all()
+    for item in items:
+        variant = db.query(Variant).filter(Variant.id == item.variant_id).first()
+        if variant:
+            variant.stock = (variant.stock or 0) + item.quantity
+
+    order.status = OrderStatus.CANCELLED
+    db.commit()
+    db.refresh(order)
+
+    # Trả về order sau khi hủy (kèm items)
+    items = db.query(OrderItem).filter(OrderItem.order_id == order.id).all()
+    return OrderResponse(
+        order_id=order.id,
+        user_id=order.user_id,
+        address_id=order.address_id,
+        status=order.status,
+        payment_method=order.payment_method,
+        shipping_method=order.shipping_method,
+        subtotal=order.subtotal,
+        discount=order.discount,
+        shipping_fee=order.shipping_fee,
+        total=order.total,
+        note=getattr(order, "note", None),
+        voucher_code=getattr(order, "voucher_code", None),
+        payment_url=getattr(order, "payment_url", None),
+        created_at=order.created_at,
+        updated_at=order.updated_at,
+        items=[
+            OrderItemResponse(
+                id=i.id,
+                order_id=i.order_id,
+                variant_id=i.variant_id,
+                product_name=i.product_name,
+                variant_name=i.variant_name,
+                price=i.price,
+                quantity=i.quantity,
+                line_total=i.line_total
+            )
+            for i in items
+        ]
     )

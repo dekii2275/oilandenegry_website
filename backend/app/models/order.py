@@ -5,9 +5,9 @@ import enum
 from app.core.database import Base
 
 class OrderStatus(str, enum.Enum):
-    PENDING_PAYMENT = "PENDING_PAYMENT"
+    # PENDING_PAYMENT = "PENDING_PAYMENT"
     PLACED = "PLACED"
-    PENDING_CONFIRM = "PENDING_CONFIRM"
+    # PENDING_CONFIRM = "PENDING_CONFIRM"
     CONFIRMED = "CONFIRMED"
     PROCESSING = "PROCESSING"
     SHIPPING = "SHIPPING"

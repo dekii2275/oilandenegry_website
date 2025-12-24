@@ -352,7 +352,7 @@ def get_product_variants(
 def get_seller_orders(
     status: Optional[str] = Query(
         None,
-        description="Lọc theo trạng thái đơn hàng: PLACED, PENDING_CONFIRM, SHIPPING, DELIVERED, CANCELLED, ..."
+        description="Lọc theo trạng thái đơn hàng: PLACED, CONFIRMED, SHIPPING, DELIVERED, CANCELLED, ..."
     ),
     current_user_store: Tuple[User, Store] = Depends(get_current_seller),
     db: Session = Depends(get_db)
@@ -361,7 +361,7 @@ def get_seller_orders(
     Seller xem tất cả các đơn hàng chứa sản phẩm của store mình.
     Có thể lọc theo trạng thái:
     - PLACED           : Đơn mới (chờ xác nhận)
-    - PENDING_CONFIRM  : Đang chờ xác nhận thêm
+    - CONFIRMED  : Đang chờ xác nhận thêm
     - SHIPPING         : Đang vận chuyển
     - DELIVERED        : Giao thành công
     - CANCELLED        : Đã hủy

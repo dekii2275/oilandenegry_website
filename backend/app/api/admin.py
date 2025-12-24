@@ -29,14 +29,16 @@ def get_pending_sellers(
     current_admin: User = Depends(get_current_admin),
     db: Session = Depends(get_db)
 ):
-    """
-    API để Admin xem danh sách các Seller đang chờ duyệt.
-    Trả về danh sách các user có role="SELLER" và is_approved=False
-    """
-    pending_sellers = db.query(User).filter(
-        User.role == "CUSTOMER",
-        User.is_approved == False
-    ).join(Store).all()
+    pending_sellers = (
+        db.query(User)
+        .join(Store, Store.user_id == User.id)
+        .filter(
+            User.role == "CUSTOMER",
+            User.is_approved == False,
+            Store.is_active == False,
+        )
+        .all()
+    )
     
     result = []
     for seller in pending_sellers:
@@ -100,19 +102,20 @@ def approve_seller(
     db: Session = Depends(get_db)
 ):
     # Tìm user (lúc này vẫn đang là CUSTOMER)
-    user = db.query(User).filter(User.id == seller_id).first()
+    user = db.query(User).filter(User.id == seller_id, User.role == "CUSTOMER", User.is_approved == False).first()
     
     if not user:
         raise HTTPException(status_code=404, detail="Không tìm thấy người dùng")
 
+    store = db.query(Store).filter(Store.user_id == user.id).first()
+    if not store:
+        raise HTTPException(status_code=404, detail="Không tìm thấy store của người dùng này")
+
     # Thực hiện nâng cấp role và duyệt
     user.role = "SELLER" 
     user.is_approved = True
+    store.is_active = True
     
-    # Kích hoạt store tương ứng
-    store = db.query(Store).filter(Store.user_id == user.id).first()
-    if store:
-        store.is_active = True
     
     db.commit()
     db.refresh(user)
@@ -141,28 +144,26 @@ def approve_seller(
 @router.put("/sellers/{seller_id}/reject", response_model=dict)
 async def reject_seller(
     seller_id: int,
-    background_tasks: BackgroundTasks, # Thêm tham số này
+    background_tasks: BackgroundTasks,
     current_admin: User = Depends(get_current_admin),
     db: Session = Depends(get_db)
 ):
-    user = db.query(User).filter(User.id == seller_id).first()
+    user = db.query(User).filter(User.id == seller_id, User.role == "CUSTOMER").first()
     if not user:
         raise HTTPException(status_code=404, detail="Không tìm thấy người dùng")
 
-    user_email = user.email # Lưu lại email trước khi xử lý
+    user_email = user.email
     user_name = user.full_name
 
-    # Giữ nguyên role CUSTOMER, reset trạng thái
     user.is_approved = False
     
-    # Vô hiệu hóa hoặc xóa store
+    # Xóa store đang chờ duyệt để biến mất khỏi pending
     store = db.query(Store).filter(Store.user_id == user.id).first()
     if store:
-        store.is_active = False
+        db.delete(store)
     
     db.commit()
 
-    # Gửi Email Thông báo Thất bại
     html = f"""
     <h3>Thông báo về yêu cầu đăng ký Nhà bán hàng</h3>
     <p>Xin chào {user_name},</p>
