@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from sqlalchemy.orm import Session
 from typing import List
 from app.core.database import get_db
@@ -7,6 +7,19 @@ from app.models.store import Store
 from app.api.deps import get_current_admin
 from app.schemas.store import SellerWithStoreResponse, StoreResponse
 from app.schemas.user import UserResponse
+from fastapi_mail import FastMail, MessageSchema, ConnectionConfig, MessageType
+from app.core.config import settings
+
+mail_conf = ConnectionConfig(
+    MAIL_USERNAME=settings.MAIL_USERNAME,
+    MAIL_PASSWORD=settings.MAIL_PASSWORD,
+    MAIL_FROM=settings.MAIL_FROM,
+    MAIL_PORT=settings.MAIL_PORT,
+    MAIL_SERVER=settings.MAIL_SERVER,
+    MAIL_STARTTLS=True,
+    MAIL_SSL_TLS=False,
+    USE_CREDENTIALS=True
+)
 
 router = APIRouter()
 
@@ -21,9 +34,9 @@ def get_pending_sellers(
     Trả về danh sách các user có role="SELLER" và is_approved=False
     """
     pending_sellers = db.query(User).filter(
-        User.role == "SELLER",
+        User.role == "CUSTOMER",
         User.is_approved == False
-    ).all()
+    ).join(Store).all()
     
     result = []
     for seller in pending_sellers:
@@ -82,86 +95,91 @@ def get_seller_detail(
 @router.put("/sellers/{seller_id}/approve", response_model=UserResponse)
 def approve_seller(
     seller_id: int,
+    background_tasks: BackgroundTasks,
     current_admin: User = Depends(get_current_admin),
     db: Session = Depends(get_db)
 ):
-    """
-    API để Admin duyệt một Seller.
-    Khi duyệt:
-    - is_approved = True
-    - store.is_active = True
-    """
-    seller = db.query(User).filter(
-        User.id == seller_id,
-        User.role == "SELLER"
-    ).first()
+    # Tìm user (lúc này vẫn đang là CUSTOMER)
+    user = db.query(User).filter(User.id == seller_id).first()
     
-    if not seller:
-        raise HTTPException(
-            status_code=404,
-            detail="Không tìm thấy Seller này"
-        )
+    if not user:
+        raise HTTPException(status_code=404, detail="Không tìm thấy người dùng")
+
+    # Thực hiện nâng cấp role và duyệt
+    user.role = "SELLER" 
+    user.is_approved = True
     
-    if seller.is_approved:
-        raise HTTPException(
-            status_code=400,
-            detail="Seller này đã được duyệt rồi"
-        )
-    
-    # Duyệt seller
-    seller.is_approved = True
-    
-    # Kích hoạt store
-    store = db.query(Store).filter(Store.user_id == seller.id).first()
+    # Kích hoạt store tương ứng
+    store = db.query(Store).filter(Store.user_id == user.id).first()
     if store:
         store.is_active = True
     
     db.commit()
-    db.refresh(seller)
-    
-    # TODO: Gửi email thông báo cho seller đã được duyệt
-    
-    return seller
+    db.refresh(user)
+
+    # Gửi email thông báo cho seller
+    html = f"""
+    <h3>Chúc mừng! Tài khoản Nhà bán hàng đã được duyệt</h3>
+    <p>Xin chào {user.full_name},</p>
+    <p>Yêu cầu đăng ký Nhà bán hàng của bạn trên <b>Energy Platform</b> đã được Admin phê duyệt thành công.</p>
+    <p>Bây giờ bạn có thể đăng nhập và bắt đầu đăng tải các sản phẩm của cửa hàng mình.</p>
+    <br>
+    <p>Trân trọng,<br>Đội ngũ hỗ trợ Energy Platform</p>
+    """
+    message = MessageSchema(
+        subject="[Energy Platform] Thông báo: Duyệt tài khoản Nhà bán hàng THÀNH CÔNG",
+        recipients=[user.email],
+        body=html,
+        subtype=MessageType.html
+    )
+    fm = FastMail(mail_conf)
+    background_tasks.add_task(fm.send_message, message)
+
+    return user
 
 # --- API TỪ CHỐI SELLER ---
 @router.put("/sellers/{seller_id}/reject", response_model=dict)
-def reject_seller(
+async def reject_seller(
     seller_id: int,
+    background_tasks: BackgroundTasks, # Thêm tham số này
     current_admin: User = Depends(get_current_admin),
     db: Session = Depends(get_db)
 ):
-    """
-    API để Admin từ chối một Seller.
-    Khi từ chối:
-    - Chuyển role về CUSTOMER
-    - Xóa store (hoặc giữ lại nhưng không active)
-    - is_approved = False
-    """
-    seller = db.query(User).filter(
-        User.id == seller_id,
-        User.role == "SELLER"
-    ).first()
+    user = db.query(User).filter(User.id == seller_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Không tìm thấy người dùng")
+
+    user_email = user.email # Lưu lại email trước khi xử lý
+    user_name = user.full_name
+
+    # Giữ nguyên role CUSTOMER, reset trạng thái
+    user.is_approved = False
     
-    if not seller:
-        raise HTTPException(
-            status_code=404,
-            detail="Không tìm thấy Seller này"
-        )
-    
-    # Chuyển về CUSTOMER
-    seller.role = "CUSTOMER"
-    seller.is_approved = False
-    
-    # Xóa hoặc vô hiệu hóa store
-    store = db.query(Store).filter(Store.user_id == seller.id).first()
+    # Vô hiệu hóa hoặc xóa store
+    store = db.query(Store).filter(Store.user_id == user.id).first()
     if store:
         store.is_active = False
-        # Hoặc xóa store: db.delete(store)
     
     db.commit()
-    
-    # TODO: Gửi email thông báo cho seller bị từ chối
+
+    # Gửi Email Thông báo Thất bại
+    html = f"""
+    <h3>Thông báo về yêu cầu đăng ký Nhà bán hàng</h3>
+    <p>Xin chào {user_name},</p>
+    <p>Chúng tôi rất tiếc phải thông báo rằng yêu cầu đăng ký Nhà bán hàng của bạn đã <b>không được phê duyệt</b> vào lúc này.</p>
+    <p>Lý do có thể do thông tin cửa hàng hoặc giấy phép kinh doanh chưa hợp lệ. Bạn vui lòng kiểm tra lại thông tin và đăng ký lại hoặc liên hệ hỗ trợ.</p>
+    <br>
+    <p>Trân trọng,<br>Đội ngũ hỗ trợ Energy Platform</p>
+    """
+    message = MessageSchema(
+        subject="[Energy Platform] Thông báo: Kết quả đăng ký Nhà bán hàng",
+        recipients=[user_email],
+        body=html,
+        subtype=MessageType.html
+    )
+    fm = FastMail(mail_conf)
+    background_tasks.add_task(fm.send_message, message)
     
     return {
-        "message": f"Đã từ chối đăng ký Seller của {seller.email}. Tài khoản đã được chuyển về CUSTOMER."
+        "message": f"Đã từ chối đăng ký của {user_email}. Email thông báo đã được gửi."
     }

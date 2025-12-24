@@ -351,7 +351,7 @@ async def register_seller(
     db.add(new_store)
     
     # Cập nhật role của user thành SELLER và is_approved = False
-    current_user.role = "SELLER"
+    # current_user.role = "SELLER"
     current_user.is_approved = False  # Chờ admin duyệt
     
     db.commit()
