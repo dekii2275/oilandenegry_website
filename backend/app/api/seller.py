@@ -424,3 +424,61 @@ def get_seller_orders(
 
     return summaries
     
+# ========== CẬP NHẬT TRẠNG THÁI ĐƠN HÀNG (Dành cho Seller) ==========
+
+@router.put("/orders/{order_id}/status", response_model=SellerOrderSummary)
+def update_order_status(
+    order_id: int,
+    new_status: str = Query(..., description="Các trạng thái: CONFIRMED, SHIPPING, DELIVERED, CANCELLED"),
+    current_user_store: Tuple[User, Store] = Depends(get_current_seller),
+    db: Session = Depends(get_db)
+):
+    """
+    API để Seller cập nhật trạng thái đơn hàng:
+    - CONFIRMED: Xác nhận đơn hàng
+    - SHIPPING: Bắt đầu giao hàng
+    - DELIVERED: Giao hàng thành công
+    - CANCELLED: Hủy đơn
+    """
+    current_user, store = current_user_store
+
+    # 1. Kiểm tra đơn hàng có tồn tại và thuộc về store này không
+    order = db.query(Order).join(OrderItem, OrderItem.order_id == Order.id)\
+        .join(Variant, Variant.id == OrderItem.variant_id)\
+        .join(Product, Product.id == Variant.product_id)\
+        .filter(Order.id == order_id, Product.store_id == store.id)\
+        .first()
+
+    if not order:
+        raise HTTPException(status_code=404, detail="Không tìm thấy đơn hàng này trong cửa hàng của bạn")
+
+    # 2. Cập nhật trạng thái mới
+    # (Có thể thêm logic validate: ví dụ đang SHIPPING thì không được về PLACED)
+    order.status = new_status
+    db.commit()
+    db.refresh(order)
+
+    # 3. Trả về thông tin đơn hàng sau khi cập nhật (giống format get_seller_orders)
+    order_items = db.query(OrderItem).join(Variant).join(Product)\
+        .filter(OrderItem.order_id == order.id, Product.store_id == store.id).all()
+
+    item_responses = [
+        SellerOrderItemResponse(
+            order_item_id=item.id,
+            product_name=item.product_name,
+            variant_name=item.variant_name,
+            price=item.price,
+            quantity=item.quantity,
+            line_total=item.line_total,
+        ) for item in order_items
+    ]
+
+    return SellerOrderSummary(
+        order_id=order.id,
+        status=order.status,
+        total=order.total,
+        created_at=order.created_at,
+        customer_email=order.user.email,
+        customer_name=order.user.full_name,
+        items=item_responses,
+    )

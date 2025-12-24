@@ -7,6 +7,8 @@ from app.models.product import Product, Variant
 from app.models.store import Store
 from app.models.users import User
 from app.schemas.product import ProductPublicResponse, VariantPublicResponse
+from app.models.review import Review
+from sqlalchemy import func
 
 router = APIRouter()
 
@@ -185,6 +187,12 @@ def get_product_detail(
         Variant.is_active == True
     ).all()
     
+    
+    stats = db.query(
+        func.avg(Review.rating).label("average_rating"),
+        func.count(Review.id).label("review_count")
+    ).filter(Review.product_id == product_id).first()
+
     variant_responses = [
         VariantPublicResponse(
             id=v.id,
@@ -204,5 +212,7 @@ def get_product_detail(
         description=product.description,
         category=product.category,
         created_at=product.created_at,
-        variants=variant_responses
+        variants=variant_responses,
+        average_rating=stats.average_rating or 0,
+        review_count=stats.review_count or 0
     )
