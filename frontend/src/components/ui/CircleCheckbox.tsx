@@ -1,42 +1,47 @@
+// components/ui/CircleCheckbox.tsx
 "use client";
 
-import { useState } from "react";
-
 interface CircleCheckboxProps {
-  label: string;
-  rightText?: string;
-  defaultChecked?: boolean;
+  checked?: boolean;
+  onChange?: () => void;
+  label?: string;
 }
 
 export default function CircleCheckbox({
+  checked = false,
+  onChange,
   label,
-  rightText,
-  defaultChecked = false,
 }: CircleCheckboxProps) {
-  const [isChecked, setIsChecked] = useState(defaultChecked);
-
   return (
-    <div
-      className="flex items-center gap-3 cursor-pointer select-none"
-      onClick={() => setIsChecked(!isChecked)}
-    >
-      <div className="relative">
-        <div
-          className={`w-4 h-4 rounded-full border-2 transition-colors ${
-            isChecked ? "border-green-600" : "border-gray-400"
-          }`}
-        />
-
-        {isChecked && (
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="w-2 h-2 rounded-full bg-green-600" />
-          </div>
+    <div className="flex items-center cursor-pointer group" onClick={onChange}>
+      <div
+        className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${
+          checked
+            ? "bg-green-600 border-green-600"
+            : "border-gray-300 group-hover:border-green-500"
+        }`}
+      >
+        {checked && (
+          <svg
+            className="w-3 h-3 text-white"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={3}
+              d="M5 13l4 4L19 7"
+            />
+          </svg>
         )}
       </div>
-
-      <span className="text-sm text-gray-700 flex-1">{label}</span>
-
-      {rightText && <span className="text-xs text-gray-500">{rightText}</span>}
+      {label && (
+        <span className="ml-3 text-sm text-gray-700 group-hover:text-green-600 transition-colors">
+          {label}
+        </span>
+      )}
     </div>
   );
 }

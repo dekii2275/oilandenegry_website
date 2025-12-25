@@ -1,20 +1,27 @@
-import type { Metadata } from 'next'
-import './globals.css'
+// app/layout.tsx
+import type { Metadata } from "next";
+import { Inter } from "next/font/google";
+import "./globals.css";
+import { AuthProvider } from "./providers/AuthProvider";
+
+const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: 'Z-ENERGY',
-  description: 'Z-ENERGY Authentication',
-}
+  title: "Z-Energy - Nền tảng năng lượng xanh",
+  description:
+    "Nền tảng thương mại điện tử chuyên cung cấp các giải pháp năng lượng xanh",
+};
 
 export default function RootLayout({
   children,
-}: {
-  children: React.ReactNode
-}) {
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
   return (
     <html lang="vi">
-      <body>{children}</body>
+      <body className={inter.className}>
+        <AuthProvider>{children}</AuthProvider>
+      </body>
     </html>
-  )
+  );
 }
-
