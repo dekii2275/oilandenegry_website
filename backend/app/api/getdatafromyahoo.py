@@ -2,7 +2,7 @@ import logging
 import yfinance as yf
 from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.orm import Session
-from sqlalchemy import func, desc
+from sqlalchemy import func, desc, select
 from datetime import datetime
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
@@ -39,18 +39,22 @@ def update_market_data():
             try:
                 # Gọi Yahoo Finance
                 ticker = yf.Ticker(symbol)
-                history = ticker.history(period="5d") # Lấy 5 ngày để chắc chắn có dữ liệu
+                history = ticker.history(period="5d") 
                 
                 if len(history) < 2:
                     continue
                 
-                current_price = history['Close'].iloc[-1]
-                prev_close = history['Close'].iloc[-2]
+                # --- SỬA LỖI TẠI ĐÂY (Ép kiểu về float chuẩn của Python) ---
+                # Thêm float(...) bao bên ngoài để loại bỏ np.float64
+                current_price = float(history['Close'].iloc[-1])
+                prev_close = float(history['Close'].iloc[-2])
+                
                 change_amount = current_price - prev_close
                 change_percent = (change_amount / prev_close) * 100
+                
                 status = "up" if change_amount >= 0 else "down"
                 
-                # Lưu vào DB (Insert dòng mới để giữ lịch sử)
+                # Lưu vào DB
                 new_record = MarketPrice(
                     name=key_name.upper(),
                     symbol=symbol,
@@ -74,7 +78,7 @@ def update_market_data():
         logger.error(f"CRITICAL ERROR trong update_market_data: {e}")
         db.rollback()
     finally:
-        db.close() # Rất quan trọng: Phải đóng session
+        db.close()
 
 # --- 2. CẤU HÌNH SCHEDULER ---
 scheduler = BackgroundScheduler()
@@ -87,33 +91,23 @@ def start_market_scheduler():
         id='market_price_job',
         replace_existing=True
     )
-    # Nếu scheduler chưa chạy thì mới start (tránh start 2 lần)
     if not scheduler.running:
         scheduler.start()
         logger.info("⏰ Market Scheduler đã được kích hoạt (15 phút/lần).")
 
-    # Đăng ký tắt scheduler khi ứng dụng dừng
     atexit.register(lambda: scheduler.shutdown())
 
-# --- 3. API ENDPOINT (CHỈ ĐỌC DB) ---
+# --- 3. API ENDPOINT ---
 @router.get("/")
 async def get_market_data(db: Session = Depends(get_db)):
-    """
-    API này giờ siêu nhanh vì chỉ đọc từ Database.
-    Nó lấy ra bản ghi MỚI NHẤT của từng loại hàng hóa.
-    """
     try:
-        # Logic SQL: Lấy các dòng có ID lớn nhất ứng với từng Name
-        # (Đây là kỹ thuật lấy 'Latest Record per Group')
-        
-        # Bước 1: Tìm ID lớn nhất cho mỗi loại hàng hóa
+        # Sửa lỗi cảnh báo SAWarning (Subquery)
         subquery = (
-            db.query(func.max(MarketPrice.id))
+            select(func.max(MarketPrice.id))
             .group_by(MarketPrice.name)
-            .subquery()
+            .scalar_subquery()
         )
         
-        # Bước 2: Query lấy dữ liệu chi tiết dựa trên các ID đó
         latest_prices = (
             db.query(MarketPrice)
             .filter(MarketPrice.id.in_(subquery))
@@ -125,9 +119,8 @@ async def get_market_data(db: Session = Depends(get_db)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     
-# --- 4. API KÍCH HOẠT THỦ CÔNG (Cho Admin) ---
+# --- 4. API KÍCH HOẠT THỦ CÔNG ---
 @router.post("/refresh-now")
 async def force_refresh():
-    """API để bạn ép hệ thống cập nhật ngay lập tức (không cần đợi 15p)"""
     update_market_data()
     return {"message": "Đã chạy cập nhật dữ liệu thành công!"}

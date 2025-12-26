@@ -29,7 +29,7 @@ from app.api import products as product_router
 from app.api import reviews as review_router
 
 # Import các file có chạy ngầm (Scheduler)
-from app.api import getdatafromyahoo # <-- File mới sửa (Thay cho getdatafromyahoo)
+from app.api import getdatafromyahoo as market_data # <-- File mới sửa (Thay cho getdatafromyahoo)
 from app.api import news # <-- File cào báo
 
 # --- 3. KHỞI TẠO BẢNG DATABASE ---
@@ -59,7 +59,7 @@ app.include_router(address_router.router, prefix="/api/users/addresses", tags=["
 app.include_router(admin_router.router, prefix="/api/admin", tags=["Admin"])
 
 # Market Data & News
-app.include_router(getdatafromyahoo.router, prefix="/api/market-data", tags=["Market Data"])
+app.include_router(market_data.router, prefix="/api/market-data", tags=["Market Data"])
 app.include_router(news.router, prefix="/api/news", tags=["News"]) # <-- Thêm router tin tức
 
 # E-commerce
