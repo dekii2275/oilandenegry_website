@@ -29,7 +29,7 @@ from app.api import products as product_router
 from app.api import reviews as review_router
 
 # Import các file có chạy ngầm (Scheduler)
-from app.api import market_data # <-- File mới sửa (Thay cho getdatafromyahoo)
+from app.api import getdatafromyahoo # <-- File mới sửa (Thay cho getdatafromyahoo)
 from app.api import news # <-- File cào báo
 
 # --- 3. KHỞI TẠO BẢNG DATABASE ---
