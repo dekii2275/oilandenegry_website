@@ -59,7 +59,7 @@ app.include_router(address_router.router, prefix="/api/users/addresses", tags=["
 app.include_router(admin_router.router, prefix="/api/admin", tags=["Admin"])
 
 # Market Data & News
-app.include_router(market_data.router, prefix="/api/market-data", tags=["Market Data"])
+app.include_router(getdatafromyahoo.router, prefix="/api/market-data", tags=["Market Data"])
 app.include_router(news.router, prefix="/api/news", tags=["News"]) # <-- Thêm router tin tức
 
 # E-commerce
