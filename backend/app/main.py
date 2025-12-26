@@ -3,41 +3,43 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 
 # --- 1. IMPORT MODELS (Để tạo bảng Database) ---
+# Import để SQLAlchemy nhận diện được các bảng
 from app.models import users as user_model 
-from app.models import address as address_model # <-- Mới
-from app.models import store as store_model  # Thêm import
-from app.models import product as product_model  # Thêm import
-from app.models import cart as cart_model  # Thêm import
-from app.models import order as order_model  # Thêm import
-from app.models import market 
+from app.models import address as address_model
+from app.models import store as store_model
+from app.models import product as product_model
+from app.models import cart as cart_model
+from app.models import order as order_model
+from app.models import market as market_model
+from app.models import review as review_model
+from app.models import news as news_model # <-- Thêm model tin tức
+
 from app.core.database import engine
 
 # --- 2. IMPORT ROUTERS (Logic API) ---
 from app.api import auth, upload
 from app.api import users as user_router
-from app.api import address as address_router # <-- Mới
-from app.api import getdatafromyahoo as market_data_router
-from app.api import admin as admin_router  # Thêm import
-from app.api import cart as cart_router  # Thêm import
-from app.api import orders as orders_router  # Thêm import
-from app.api import seller as seller_router  # Thêm import
-from app.api import stores as store_router  # Thêm import
-from app.api import products as product_router  # Thêm import
-from app.api import reviews as review_router  # Thêm import
-from app.models import review as review_model  # Thêm import
+from app.api import address as address_router
+from app.api import admin as admin_router
+from app.api import cart as cart_router
+from app.api import orders as orders_router
+from app.api import seller as seller_router
+from app.api import stores as store_router
+from app.api import products as product_router
+from app.api import reviews as review_router
+
+# Import các file có chạy ngầm (Scheduler)
+from app.api import market_data # <-- File mới sửa (Thay cho getdatafromyahoo)
+from app.api import news # <-- File cào báo
+
 # --- 3. KHỞI TẠO BẢNG DATABASE ---
-# Lệnh này sẽ tự động tạo bảng nếu chưa có (users, addresses...)
+# Chỉ cần import models bên trên, lệnh này sẽ tạo tất cả các bảng chưa tồn tại
 user_model.Base.metadata.create_all(bind=engine) 
-address_model.Base.metadata.create_all(bind=engine)
-store_model.Base.metadata.create_all(bind=engine)  # Thêm dòng này
-product_model.Base.metadata.create_all(bind=engine)  # Thêm dòng này
-cart_model.Base.metadata.create_all(bind=engine)  # Thêm dòng này
-order_model.Base.metadata.create_all(bind=engine)  # Thêm dòng này
-review_model.Base.metadata.create_all(bind=engine)  # Thêm dòng này
+
 # --- 4. KHỞI TẠO APP ---
 app = FastAPI(title="Energy Platform API")
 
-# Cấu hình CORS (Chấp nhận mọi kết nối từ Frontend)
+# Cấu hình CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -46,33 +48,52 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Cấu hình thư mục chứa ảnh tĩnh (Avatar, Product Image...)
+# Cấu hình thư mục static
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # --- 5. GẮN CÁC ROUTER VÀO HỆ THỐNG ---
-# Auth: Đăng ký, Đăng nhập, Quên mật khẩu
 app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])
-
-# User: Xem profile, Cập nhật thông tin
 app.include_router(user_router.router, prefix="/api/users", tags=["Users"]) 
-
-# Upload: Upload ảnh
 app.include_router(upload.router, prefix="/api/upload", tags=["Upload"]) 
-
-# Address: Thêm, Sửa, Xóa địa chỉ (QUAN TRỌNG: Bạn đang thiếu dòng này)
 app.include_router(address_router.router, prefix="/api/users/addresses", tags=["Addresses"]) 
-app.include_router(admin_router.router, prefix="/api/admin", tags=["Admin"])  # Thêm router admin
+app.include_router(admin_router.router, prefix="/api/admin", tags=["Admin"])
 
-# Market Data: Lấy dữ liệu thị trường
-app.include_router(market_data_router.router, prefix="/api/market-data", tags=["Market Data"])
+# Market Data & News
+app.include_router(market_data.router, prefix="/api/market-data", tags=["Market Data"])
+app.include_router(news.router, prefix="/api/news", tags=["News"]) # <-- Thêm router tin tức
 
-app.include_router(cart_router.router, prefix="/api/cart", tags=["Cart"])  # Thêm router cart
-app.include_router(orders_router.router, prefix="/api/orders", tags=["Orders"])  # Thêm router orders
-app.include_router(seller_router.router, prefix="/api/seller", tags=["Seller"])  # Thêm router seller
-app.include_router(store_router.router, prefix="/api/stores", tags=["Stores"])  # Thêm router stores
-app.include_router(product_router.router, prefix="/api/products", tags=["Products"])  # Thêm router products
-app.include_router(review_router.router, prefix="/api/reviews", tags=["Reviews"])  # Thêm router reviews
-# --- 6. ROOT ENDPOINT ---
+# E-commerce
+app.include_router(cart_router.router, prefix="/api/cart", tags=["Cart"])
+app.include_router(orders_router.router, prefix="/api/orders", tags=["Orders"])
+app.include_router(seller_router.router, prefix="/api/seller", tags=["Seller"])
+app.include_router(store_router.router, prefix="/api/stores", tags=["Stores"])
+app.include_router(product_router.router, prefix="/api/products", tags=["Products"])
+app.include_router(review_router.router, prefix="/api/reviews", tags=["Reviews"])
+
+# --- 6. SỰ KIỆN KHỞI ĐỘNG (QUAN TRỌNG NHẤT) ---
+@app.on_event("startup")
+def startup_event():
+    """
+    Hàm này chạy 1 lần duy nhất khi Server khởi động.
+    Dùng để kích hoạt các tác vụ chạy ngầm.
+    """
+    print("⏳ Đang khởi động các tác vụ nền...")
+    
+    # 1. Kích hoạt cập nhật giá thị trường (15 phút/lần)
+    try:
+        market_data.start_market_scheduler()
+        print("✅ Market Scheduler: ON")
+    except Exception as e:
+        print(f"❌ Market Scheduler lỗi: {e}")
+
+    # 2. Kích hoạt cào báo (12 tiếng/lần)
+    try:
+        news.start_scheduler()
+        print("✅ News Scheduler: ON")
+    except Exception as e:
+        print(f"❌ News Scheduler lỗi: {e}")
+
+# --- 7. ROOT ENDPOINT ---
 @app.get("/")
 def read_root():
     return {"message": "Hệ thống Energy Platform đã sẵn sàng!"}
