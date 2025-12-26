@@ -12,14 +12,27 @@ class User(Base):
     hashed_password = Column(String, nullable=False)
     full_name = Column(String)
     role = Column(String, default="CUSTOMER")
+    
+    # --- BỔ SUNG CỘT CÒN THIẾU ---
+    is_active = Column(Boolean, default=True)  # <--- Fix lỗi Seed data
+    # -----------------------------
+    
     is_verified = Column(Boolean, default=False)
-    is_approved = Column(Boolean, default=False)  # Dùng cho seller approval
+    is_approved = Column(Boolean, default=False)
     created_at = Column(TIMESTAMP, server_default=func.now())
     avatar_url = Column(String, nullable=True)
+
+    # --- RELATIONSHIPS (Dùng đường dẫn đầy đủ để tránh lỗi import vòng tròn) ---
     addresses = relationship("app.models.address.Address", back_populates="owner")
-    store = relationship("app.models.store.Store", back_populates="owner", uselist=False)  # Thêm relationship với Store
-    cart = relationship("Cart", back_populates="user", uselist=False)  # Thêm relationship với Cart
-    orders = relationship("Order", back_populates="user")  # Thêm relationship với Order
+    store = relationship("app.models.store.Store", back_populates="owner", uselist=False)
+    
+    # Sửa lại đường dẫn full path cho Cart và Order để an toàn hơn
+    cart = relationship("app.models.cart.Cart", back_populates="user", uselist=False)
+    orders = relationship("app.models.order.Order", back_populates="user")
+    
+    # --- BỔ SUNG RELATIONSHIP REVIEW ---
+    reviews = relationship("app.models.review.Review", back_populates="user")
+    # -----------------------------------
 
 
 # 1. Dữ liệu gửi lên khi Đăng nhập
