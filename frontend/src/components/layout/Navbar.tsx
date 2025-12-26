@@ -1,4 +1,3 @@
-// components/Navbar.tsx
 "use client";
 
 import Link from "next/link";
@@ -15,11 +14,10 @@ const Navbar = () => {
   ];
 
   return (
-    <nav className="hidden md:flex items-center space-x-8 ml-20">
-      {" "}
-      {/* Thêm ml-20 (5cm) */}
+    <nav className="hidden md:flex items-center space-x-8 ml-48">
       {navLinks.map((link) => {
-        const isActive = pathname === link.href;
+        const isActive =
+          link.href === "/" ? pathname === "/" : pathname.startsWith(link.href);
 
         return (
           <Link

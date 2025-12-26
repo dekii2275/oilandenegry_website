@@ -67,7 +67,7 @@ export default function WhyEnergyMarket() {
               ))}
             </div>
 
-            <Link href="#">
+            <Link href="/about">
               <button className="border border-emerald-600 text-emerald-600 hover:bg-emerald-50 font-semibold py-2.5 px-6 rounded-full transition text-sm">
                 Tìm hiểu thêm về chúng tôi
               </button>

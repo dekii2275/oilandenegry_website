@@ -14,7 +14,7 @@ export default function FeaturedProducts() {
       badge: 'Còn hàng',
       badgeColor: 'bg-emerald-500',
       image: '/assets/images/pic_2.png',
-      link: '#',
+      link: '/products',
     },
     {
       id: 2,
@@ -26,7 +26,7 @@ export default function FeaturedProducts() {
       badge: 'Đặt trước',
       badgeColor: 'bg-blue-500',
       image: '/assets/images/pic_3.png',
-      link: '#',
+      link: '/products',
     },
     {
       id: 3,
@@ -38,7 +38,7 @@ export default function FeaturedProducts() {
       badge: 'Bán sỉ',
       badgeColor: 'bg-orange-500',
       image: '/assets/images/pic_4.png',
-      link: '#',
+      link: '/products',
     },
   ]
 
@@ -57,7 +57,7 @@ export default function FeaturedProducts() {
           </div>
 
           <Link
-            href="#"
+            href="/products"
             className="text-emerald-600 font-medium text-sm hover:text-emerald-700"
           >
             Xem tất cả
@@ -122,10 +122,12 @@ export default function FeaturedProducts() {
 
         {/* Bottom CTA */}
         <div className="flex justify-center">
-          <button className="bg-emerald-500 hover:bg-emerald-600 text-white font-semibold py-3 px-8 rounded-full inline-flex items-center gap-2 transition text-sm shadow-sm">
-            Xem tất cả sản phẩm
-            <span>→</span>
-          </button>
+          <Link href="/products">
+            <button className="bg-emerald-500 hover:bg-emerald-600 text-white font-semibold py-3 px-8 rounded-full inline-flex items-center gap-2 transition text-sm shadow-sm">
+              Xem tất cả sản phẩm
+              <span>→</span>
+            </button>
+          </Link>
         </div>
       </div>
     </section>

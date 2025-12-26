@@ -1,19 +1,25 @@
+// components/ui/CircleCheckbox.tsx
+"use client";
+
 interface CircleCheckboxProps {
   checked?: boolean;
   onChange?: () => void;
-  label?: string;  // Add label prop
+  label?: string;
 }
 
-export default function CircleCheckbox({ checked, onChange, label }: CircleCheckboxProps) {
+export default function CircleCheckbox({
+  checked = false,
+  onChange,
+  label,
+}: CircleCheckboxProps) {
   return (
-    <label className="flex items-center cursor-pointer group">
+    <div className="flex items-center cursor-pointer group" onClick={onChange}>
       <div
         className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${
           checked
             ? "bg-green-600 border-green-600"
             : "border-gray-300 group-hover:border-green-500"
         }`}
-        onClick={onChange}
       >
         {checked && (
           <svg
@@ -36,6 +42,6 @@ export default function CircleCheckbox({ checked, onChange, label }: CircleCheck
           {label}
         </span>
       )}
-    </label>
+    </div>
   );
 }

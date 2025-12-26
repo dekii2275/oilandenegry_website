@@ -1,60 +1,264 @@
+// components/layout/Header.tsx
 "use client";
 
 import Link from "next/link";
-import Image from "next/image";
-import { Bell, ShoppingCart } from "lucide-react";
-import { FaUser } from "react-icons/fa";
-import Navbar from "./Navbar";
+import { useState } from "react";
+import { useAuth } from "@/app/providers/AuthProvider";
+import ProfileDropdown from "./ProfileDropdown";
+import { usePathname } from "next/navigation";
 
-const Header = () => {
+export default function Header() {
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
+  const { user, isAuthenticated } = useAuth();
+  const pathname = usePathname();
+
+  const navItems = [
+    { href: "/", label: "Trang chủ" },
+    { href: "/about", label: "Về chúng tôi" },
+    { href: "/products", label: "Sản phẩm" },
+    { href: "/news", label: "Tin tức" },
+  ];
+
+  const isActive = (href: string) => {
+    if (href === "/") {
+      return pathname === "/";
+    }
+    return pathname.startsWith(href);
+  };
+
+  // Lấy avatar từ user hoặc dùng chữ cái đầu
+  const getUserAvatar = () => {
+    if (user?.avatar) {
+      return (
+        <img
+          src={user.avatar}
+          alt={user.name}
+          className="w-8 h-8 rounded-full object-cover border-2 border-white"
+        />
+      );
+    }
+
+    // Nếu không có avatar, hiển thị chữ cái đầu
+    return (
+      <div
+        className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold ${
+          pathname.startsWith("/profile") ||
+          pathname.startsWith("/orders") ||
+          pathname.startsWith("/payment-settings") ||
+          pathname.startsWith("/security")
+            ? "bg-gradient-to-r from-green-600 to-green-700 ring-2 ring-green-300"
+            : "bg-gradient-to-r from-green-500 to-teal-500"
+        }`}
+      >
+        {user?.name?.charAt(0).toUpperCase() || "👤"}
+      </div>
+    );
+  };
+
   return (
-    <header className="bg-white shadow-sm sticky top-0 z-50">
-      <div className="max-w-7xl mx-auto px-4 py-4">
-        <div className="flex items-center justify-between">
+    <header className="border-b-4 border-green-600 sticky top-0 z-50 bg-white">
+      <div className="max-w-5xl mx-auto px-6 md:px-8">
+        <div className="flex justify-between items-center h-16">
           {/* Logo */}
-          <Link href="/" className="flex items-center space-x-3">
-            <div className="w-12 h-12 rounded-full overflow-hidden bg-white shadow-sm flex items-center justify-center">
-              <Image
-                src="/assets/images/logo.png"
-                alt="Z-Energy Logo"
-                width={48}
-                height={48}
-                className="object-cover scale-150"
-              />
-            </div>
-            <h1 className="text-2xl font-bold text-gray-900">Z-ENERGY</h1>
+          <Link
+            href="/"
+            className="flex items-center gap-2 font-bold text-xl text-gray-900"
+          >
+            <img
+              src="/assets/images/logo.png"
+              alt="Z-ENERGY Logo"
+              className="w-17 h-16 object-contain"
+            />
+            <span>Z-ENERGY</span>
           </Link>
 
-          {/* Navbar */}
-          <Navbar />
+          {/* Desktop Navigation */}
+          <nav className="hidden md:flex gap-8 items-center text-sm">
+            {navItems.map((item) => {
+              const active = isActive(item.href);
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`
+                    transition font-medium relative
+                    ${
+                      active
+                        ? "text-green-600 font-bold"
+                        : "text-gray-700 hover:text-teal-600"
+                    }
+                  `}
+                >
+                  {item.label}
+                  {active && (
+                    <span className="absolute -bottom-1 left-0 w-full h-1 bg-green-600 rounded-full"></span>
+                  )}
+                </Link>
+              );
+            })}
+          </nav>
 
-          {/* Icons */}
-          <div className="flex items-center space-x-4">
-            {/* Icon chuông */}
+          {/* Right Actions */}
+          <div className="flex items-center gap-5">
+            {/* Icon thông báo */}
             <Link href="/notifications">
-              <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition cursor-pointer border border-gray-300">
-                <Bell className="w-5 h-5 text-gray-700" />
+              <div
+                className={`w-10 h-10 rounded-full flex items-center justify-center hover:bg-gray-100 transition cursor-pointer ${
+                  pathname === "/notifications" ? "bg-green-50" : ""
+                }`}
+              >
+                <svg
+                  width="40"
+                  height="40"
+                  viewBox="0 0 40 40"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <rect
+                    width="40"
+                    height="40"
+                    rx="20"
+                    fill={pathname === "/notifications" ? "#DBEAFE" : "#F3F4F6"}
+                  />
+                  <path
+                    d="M13.3333 25.8335V24.1668H14.9999V18.3335C14.9999 17.1807 15.3471 16.1564 16.0416 15.2606C16.736 14.3647 17.6388 13.7779 18.7499 13.5002V12.9168C18.7499 12.5696 18.8714 12.2745 19.1145 12.0314C19.3576 11.7884 19.6527 11.6668 19.9999 11.6668C20.3471 11.6668 20.6423 11.7884 20.8853 12.0314C21.1284 12.2745 21.2499 12.5696 21.2499 12.9168V13.5002C22.361 13.7779 23.2638 14.3647 23.9583 15.2606C24.6527 16.1564 24.9999 17.1807 24.9999 18.3335V24.1668H26.6666V25.8335H13.3333ZM19.9999 28.3335C19.5416 28.3335 19.1492 28.1703 18.8228 27.8439C18.4964 27.5175 18.3333 27.1252 18.3333 26.6668H21.6666C21.6666 27.1252 21.5034 27.5175 21.177 27.8439C20.8506 28.1703 20.4583 28.3335 19.9999 28.3335ZM16.6666 24.1668H23.3333V18.3335C23.3333 17.4168 23.0069 16.6321 22.3541 15.9793C21.7013 15.3266 20.9166 15.0002 19.9999 15.0002C19.0833 15.0002 18.2985 15.3266 17.6458 15.9793C16.993 16.6321 16.6666 17.4168 16.6666 18.3335V24.1668Z"
+                    fill={pathname === "/notifications" ? "#2563EB" : "#4B5563"}
+                  />
+                </svg>
               </div>
             </Link>
 
-            {/* Giỏ hàng */}
+            {/* Icon giỏ hàng */}
             <Link href="/cart">
-              <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition cursor-pointer border border-gray-300">
-                <ShoppingCart className="w-5 h-5 text-gray-700" />
+              <div
+                className={`w-10 h-10 rounded-full flex items-center justify-center hover:bg-gray-100 transition cursor-pointer ${
+                  pathname === "/cart" ? "bg-green-50" : ""
+                }`}
+              >
+                <svg
+                  width="40"
+                  height="40"
+                  viewBox="0 0 40 40"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <rect
+                    width="40"
+                    height="40"
+                    rx="20"
+                    fill={pathname === "/cart" ? "#DBEAFE" : "#F3F4F6"}
+                  />
+                  <path
+                    d="M15.8333 28.3335C15.3749 28.3335 14.9826 28.1703 14.6562 27.8439C14.3298 27.5175 14.1666 27.1252 14.1666 26.6668C14.1666 26.2085 14.3298 25.8161 14.6562 25.4897C14.9826 25.1634 15.3749 25.0002 15.8333 25.0002C16.2916 25.0002 16.6839 25.1634 17.0103 25.4897C17.3367 25.8161 17.4999 26.2085 17.4999 26.6668C17.4999 27.1252 17.3367 27.5175 17.0103 27.8439C16.6839 28.1703 16.2916 28.3335 15.8333 28.3335ZM24.1666 28.3335C23.7083 28.3335 23.3159 28.1703 22.9895 27.8439C22.6631 27.5175 22.4999 27.1252 22.4999 26.6668C22.4999 26.2085 22.6631 25.8161 22.9895 25.4897C23.3159 25.1634 23.7083 25.0002 24.1666 25.0002C24.6249 25.0002 25.0173 25.1634 25.3437 25.4897C25.6701 25.8161 25.8333 26.2085 25.8333 26.6668C25.8333 27.1252 25.6701 27.5175 25.3437 27.8439C25.0173 28.1703 24.6249 28.3335 24.1666 28.3335ZM15.1249 15.0002L17.1249 19.1668H22.9583L25.2499 15.0002H15.1249ZM14.3333 13.3335H26.6249C26.9444 13.3335 27.1874 13.4759 27.3541 13.7606C27.5208 14.0453 27.5277 14.3335 27.3749 14.6252L24.4166 19.9585C24.2638 20.2363 24.0589 20.4516 23.802 20.6043C23.5451 20.7571 23.2638 20.8335 22.9583 20.8335H16.7499L15.8333 22.5002H25.8333V24.1668H15.8333C15.2083 24.1668 14.736 23.8925 14.4166 23.3439C14.0971 22.7953 14.0833 22.2502 14.3749 21.7085L15.4999 19.6668L12.4999 13.3335H10.8333V11.6668H13.5416L14.3333 13.3335Z"
+                    fill={pathname === "/cart" ? "#2563EB" : "#4B5563"}
+                  />
+                </svg>
               </div>
             </Link>
 
-            {/* User icon */}
-            <Link href="/login">
-              <div className="w-12 h-12 rounded-full bg-white flex items-center justify-center hover:bg-gray-50 transition cursor-pointer border-2 border-gray-900 shadow-md">
-                <FaUser className="text-gray-800 text-2xl" />
-              </div>
-            </Link>
+            {/* Icon người dùng với dropdown */}
+            <div className="relative">
+              <button
+                onClick={() => setIsProfileDropdownOpen(!isProfileDropdownOpen)}
+                className="flex items-center justify-center w-10 h-10 hover:bg-gray-100 rounded-full transition focus:outline-none focus:ring-2 focus:ring-green-500"
+              >
+                {isAuthenticated && user ? getUserAvatar() : "👤"}
+              </button>
+
+              {/* Hiển thị ProfileDropdown nếu đã đăng nhập */}
+              {isAuthenticated && (
+                <ProfileDropdown
+                  isOpen={isProfileDropdownOpen}
+                  onClose={() => setIsProfileDropdownOpen(false)}
+                />
+              )}
+            </div>
+
+            {/* Mobile Menu Button */}
+            <button
+              className="md:hidden text-gray-600 hover:text-gray-900 text-2xl"
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            >
+              ☰
+            </button>
           </div>
         </div>
+
+        {/* Mobile Menu */}
+        {mobileMenuOpen && (
+          <nav className="md:hidden pb-4 flex flex-col gap-3 border-t pt-4">
+            {navItems.map((item) => {
+              const active = isActive(item.href);
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`
+                    py-2 px-4 rounded transition
+                    ${
+                      active
+                        ? "text-green-600 bg-green-50 font-bold"
+                        : "text-gray-700 hover:text-teal-600 hover:bg-gray-50"
+                    }
+                  `}
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  {item.label}
+                </Link>
+              );
+            })}
+
+            {/* Mobile auth links */}
+            {isAuthenticated ? (
+              <>
+                <Link
+                  href="/profile"
+                  className={`py-2 px-4 rounded transition ${
+                    pathname === "/profile"
+                      ? "text-green-600 bg-green-50 font-bold"
+                      : "text-gray-700 hover:text-teal-600 hover:bg-gray-50"
+                  }`}
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  Thông tin cá nhân
+                </Link>
+                <Link
+                  href="/orders"
+                  className={`py-2 px-4 rounded transition ${
+                    pathname === "/orders"
+                      ? "text-green-600 bg-green-50 font-bold"
+                      : "text-gray-700 hover:text-teal-600 hover:bg-gray-50"
+                  }`}
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  Đơn hàng của tôi
+                </Link>
+                <button
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                  }}
+                  className="text-red-600 hover:text-red-700 py-2 px-4 rounded hover:bg-red-50 text-left"
+                >
+                  Đăng xuất
+                </button>
+              </>
+            ) : (
+              <Link
+                href="/login"
+                className={`py-2 px-4 rounded transition font-medium ${
+                  pathname === "/login"
+                    ? "text-green-600 bg-green-50 font-bold"
+                    : "text-green-600 hover:text-green-700 hover:bg-green-50"
+                }`}
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                Đăng nhập
+              </Link>
+            )}
+          </nav>
+        )}
       </div>
     </header>
   );
-};
-
-export default Header;
+}

@@ -88,9 +88,9 @@ export default function ProductDetailPage() {
       try {
         setLoading(true);
         const baseUrl =
-          process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000/api";
+          process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001";
 
-        const response = await fetch(`${baseUrl}/products/${productId}`);
+        const response = await fetch(`${baseUrl}/api/products/${productId}`);
 
         if (!response.ok) {
           throw new Error("Không thể tải thông tin sản phẩm");
