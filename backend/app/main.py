@@ -9,6 +9,7 @@ from app.models import store as store_model  # Thêm import
 from app.models import product as product_model  # Thêm import
 from app.models import cart as cart_model  # Thêm import
 from app.models import order as order_model  # Thêm import
+from app.models import market 
 from app.core.database import engine
 
 # --- 2. IMPORT ROUTERS (Logic API) ---
