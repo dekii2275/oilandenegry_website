@@ -1,7 +1,7 @@
 // frontend/src/app/profile/MyOrders.tsx
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React from "react";
 import { useOrders } from "./hooks/useOrders";
 import OrderTable from "./components/MyOrders/OrderTable";
 import OrderFilter from "./components/MyOrders/OrderFilter";
@@ -45,25 +45,14 @@ export default function MyOrders() {
     setPagination,
     handleSearchChange,
     resetFilters,
-    getCurrentPageOrders,
     handleDownloadInvoice,
     handleViewOrder,
     handleCancelOrder,
-    refreshOrders,
+    clearDateFilter,
+    clearAmountFilter,
+    clearPaymentFilter,
+    clearSearch,
   } = useOrders();
-
-  // State local để quản lý pagination
-  const [localPagination, setLocalPagination] = useState({
-    page: 1,
-    limit: 5,
-    total: 0,
-    totalPages: 0,
-  });
-
-  // Đồng bộ pagination từ hook
-  useEffect(() => {
-    setLocalPagination(pagination);
-  }, [pagination]);
 
   const getStatusColor = (status: string): string => {
     switch (status) {
@@ -100,102 +89,40 @@ export default function MyOrders() {
     }).format(amount);
   };
 
-  // SỬA LẠI CÁC HÀM FILTER - Thêm type cho filters
-  const clearDateFilter = () => {
-    if (setFilters) {
-      setFilters({
-        ...filters,
-        dateRange: { start: "", end: "" },
-      });
-    }
-  };
-
-  const clearAmountFilter = () => {
-    if (setFilters) {
-      setFilters({
-        ...filters,
-        minAmount: "",
-        maxAmount: "",
-      });
-    }
-  };
-
-  const clearPaymentFilter = () => {
-    if (setFilters) {
-      setFilters({
-        ...filters,
-        paymentStatus: "all",
-      });
-    }
-  };
-
-  const clearSearch = () => {
-    if (setTempSearchTerm) {
-      setTempSearchTerm("");
-    }
-    if (handleSearchChange) {
-      handleSearchChange("");
-    }
-  };
-
-  // SỬA LẠI HÀM PAGINATION - Đơn giản hóa
+  // Hàm xử lý pagination
   const handlePageChange = (page: number) => {
-    // Cập nhật local state
-    setLocalPagination((prev) => ({ ...prev, page }));
-
-    // Gọi hàm từ hook nếu có - đơn giản hóa logic
     if (setPagination) {
-      try {
-        // Thử gọi trực tiếp với page
-        (setPagination as any)(page);
-      } catch (error) {
-        console.log("Error setting pagination:", error);
-      }
+      setPagination(page);
     }
   };
 
+  // Hàm xử lý tab change
   const handleTabChange = (tab: string) => {
     if (setActiveTab) {
       setActiveTab(tab);
     }
-    // Reset về trang 1 khi đổi tab
-    setLocalPagination((prev) => ({ ...prev, page: 1 }));
-
-    if (setPagination) {
-      try {
-        (setPagination as any)(1);
-      } catch (error) {
-        console.log("Error setting pagination:", error);
-      }
-    }
   };
 
-  // Thêm hàm xử lý cancel order
-  const handleCancelOrderWrapper = (orderId: string) => {
-    if (handleCancelOrder) {
-      handleCancelOrder(orderId);
-    } else {
-      if (confirm(`Bạn có chắc muốn hủy đơn hàng ${orderId}?`)) {
-        alert(`Đã hủy đơn hàng ${orderId} (Mock Data)`);
-        // Có thể gọi refreshOrders nếu cần
-        if (refreshOrders) {
-          refreshOrders();
-        }
-      }
-    }
+  // Hàm helper để lấy label của tab
+  const getTabLabel = (tabKey: string): string => {
+    const tabMap: Record<string, string> = {
+      all: "tất cả",
+      pending: "chờ xác nhận",
+      confirmed: "đã xác nhận",
+      shipping: "đang giao",
+      completed: "hoàn thành",
+      cancelled: "đã hủy",
+    };
+    return tabMap[tabKey] || tabKey;
   };
 
-  // Hàm lấy orders cho trang hiện tại
-  const getCurrentOrders = () => {
-    if (getCurrentPageOrders) {
-      return getCurrentPageOrders();
-    }
-
-    // Fallback: tự phân trang nếu hook không cung cấp
-    const start = (localPagination.page - 1) * localPagination.limit;
-    const end = start + localPagination.limit;
-    return filteredOrders.slice(start, end);
-  };
+  // Debug
+  console.log("MyOrders Component:", {
+    activeTab,
+    filteredOrdersCount: filteredOrders.length,
+    pagination,
+    hasPagination: pagination.total > 0,
+  });
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
@@ -227,7 +154,6 @@ export default function MyOrders() {
         onSearchChange={
           handleSearchChange ||
           ((value: string) => {
-            // Fallback nếu handleSearchChange không tồn tại
             if (setTempSearchTerm) {
               setTempSearchTerm(value);
             }
@@ -276,7 +202,9 @@ export default function MyOrders() {
               </svg>
             </div>
             <p className="text-gray-600 font-medium text-lg">
-              Không tìm thấy đơn hàng
+              {activeTab === "all"
+                ? "Không tìm thấy đơn hàng"
+                : `Không có đơn hàng ${getTabLabel(activeTab)}`}
             </p>
             <p className="text-sm text-gray-500 mt-2 mb-6">
               Không có đơn hàng nào phù hợp với bộ lọc của bạn
@@ -291,19 +219,19 @@ export default function MyOrders() {
         ) : (
           <>
             <OrderTable
-              orders={getCurrentOrders()}
+              orders={filteredOrders}
               useMockData={useMockData}
               onViewOrder={handleViewOrder || (() => {})}
               onDownloadInvoice={handleDownloadInvoice || (() => {})}
-              onCancelOrder={handleCancelOrderWrapper}
+              onCancelOrder={handleCancelOrder || (() => {})}
               getStatusColor={getStatusColor}
               getStatusText={getStatusText}
               formatCurrency={formatCurrency}
             />
 
-            {localPagination.totalPages > 1 && (
+            {pagination.total > 0 && (
               <Pagination
-                pagination={localPagination}
+                pagination={pagination}
                 onPageChange={handlePageChange}
               />
             )}
