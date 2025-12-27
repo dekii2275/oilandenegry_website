@@ -8,8 +8,6 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
       # (Đã xóa POSTGRES_HOST ở đây vì không cần thiết)
-    ports:
-      - "5432:5432"
     volumes:
       - pg_data:/var/lib/postgresql/data
       - ./backend/docker/db/init.sql:/docker-entrypoint-initdb.d/init.sql
@@ -21,8 +19,6 @@ services:
     environment:
       MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER}
       MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD}
-    ports:
-      - "27017:27017"
     volumes:
       - mongo_data:/data/db
 
@@ -48,7 +44,7 @@ services:
 
       # Mongo
       MONGO_URL: mongodb://${MONGO_USER}:${MONGO_PASSWORD}@mongo:27017
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
     ports:
       - "8001:8000"
     volumes:
@@ -64,7 +60,7 @@ services:
     depends_on:
       - backend
     environment:
-      NEXT_PUBLIC_API_URL: http://13.212.128.129:8001/api
+      NEXT_PUBLIC_API_URL: /api
     ports:
       - "3000:3000"
     volumes:
