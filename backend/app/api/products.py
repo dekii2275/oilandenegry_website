@@ -1,218 +1,112 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.orm import Session
-from typing import List, Optional
+from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import func, desc, asc
+from typing import List, Optional, Any
+from pydantic import BaseModel
 
 from app.core.database import get_db
-from app.models.product import Product, Variant
+from app.models.product import Product, Variant, ProductImage
 from app.models.store import Store
-from app.models.users import User
-from app.schemas.product import ProductPublicResponse, VariantPublicResponse
 from app.models.review import Review
-from sqlalchemy import func
 
 router = APIRouter()
 
-# GET /api/products - Xem danh sách tất cả products (public)
-@router.get("/", response_model=List[ProductPublicResponse])
+# --- 1. SCHEMA ---
+# Định nghĩa nhanh schema để output dữ liệu gọn gàng
+class ProductListResponse(BaseModel):
+    id: int
+    name: str
+    slug: str
+    category: Optional[str] = None
+    description: Optional[str] = None
+    price: float = 0
+    market_price: float = 0
+    image_url: Optional[str] = None
+    rating_average: float = 0.0
+    review_count: int = 0
+    store_name: Optional[str] = None
+    is_active: bool
+
+    class Config:
+        from_attributes = True
+
+# --- 2. API ENDPOINT ---
+@router.get("/", response_model=List[ProductListResponse])
 def get_products(
     db: Session = Depends(get_db),
-    store_id: Optional[int] = Query(None, description="Filter theo store_id"),
-    category: Optional[str] = Query(None, description="Filter theo category"),
-    search: Optional[str] = Query(None, description="Tìm kiếm theo tên sản phẩm"),
     skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=100)
+    limit: int = Query(100, ge=1, le=100),
+    search: Optional[str] = None,
+    category: Optional[str] = None,
+    sort: Optional[str] = None # price-asc, price-desc, newest
 ):
-    """
-    Customer xem danh sách tất cả products từ các stores đã được duyệt.
-    Chỉ hiển thị products active từ stores active và approved.
-    """
-    query = db.query(Product).join(Store).join(User).filter(
+    # Bắt đầu truy vấn từ bảng Product
+    # join(Store) để đảm bảo Store còn hoạt động
+    # options(joinedload(...)) để nạp trước dữ liệu quan hệ (tối ưu SQL)
+    query = db.query(Product).join(Store).filter(
         Product.is_active == True,
-        Store.is_active == True,
-        User.is_approved == True,
-        User.role == "SELLER"
+        Store.is_active == True
+    ).options(
+        joinedload(Product.variants),
+        joinedload(Product.store)
     )
-    
-    # Filter theo store_id
-    if store_id:
-        query = query.filter(Product.store_id == store_id)
-    
-    # Filter theo category
-    if category:
-        query = query.filter(Product.category.ilike(f"%{category}%"))
-    
-    # Search theo tên
-    if search:
-        query = query.filter(Product.name.ilike(f"%{search}%"))
-    
-    products = query.offset(skip).limit(limit).all()
-    
-    result = []
-    for product in products:
-        # Lấy variants active và có stock > 0
-        variants = db.query(Variant).filter(
-            Variant.product_id == product.id,
-            Variant.is_active == True,
-            Variant.stock > 0
-        ).all()
-        
-        # Chỉ hiển thị product nếu có ít nhất 1 variant available
-        if variants:
-            variant_responses = [
-                VariantPublicResponse(
-                    id=v.id,
-                    product_id=v.product_id,
-                    name=v.name,
-                    price=v.price,
-                    stock=v.stock,
-                    is_active=v.is_active
-                ) for v in variants
-            ]
-            
-            result.append(ProductPublicResponse(
-                id=product.id,
-                store_id=product.store_id,
-                store_name=product.store.store_name,
-                name=product.name,
-                description=product.description,
-                category=product.category,
-                created_at=product.created_at,
-                variants=variant_responses
-            ))
-    
-    return result
 
-# GET /api/stores/{store_id}/products - Xem products của một store cụ thể
-@router.get("/stores/{store_id}/products", response_model=List[ProductPublicResponse])
-def get_store_products(
-    store_id: int,
-    db: Session = Depends(get_db),
-    category: Optional[str] = Query(None),
-    search: Optional[str] = Query(None),
-    skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=100)
-):
-    """
-    Customer xem danh sách products của một store cụ thể
-    """
-    # Kiểm tra store tồn tại và active
-    store = db.query(Store).join(User).filter(
-        Store.id == store_id,
-        Store.is_active == True,
-        User.is_approved == True,
-        User.role == "SELLER"
-    ).first()
-    
-    if not store:
-        raise HTTPException(
-            status_code=404,
-            detail="Không tìm thấy store này hoặc store chưa được kích hoạt"
-        )
-    
-    query = db.query(Product).filter(
-        Product.store_id == store_id,
-        Product.is_active == True
-    )
-    
-    # Filter theo category
-    if category:
-        query = query.filter(Product.category.ilike(f"%{category}%"))
-    
-    # Search theo tên
+    # --- Lọc theo Search ---
     if search:
-        query = query.filter(Product.name.ilike(f"%{search}%"))
-    
-    products = query.offset(skip).limit(limit).all()
-    
-    result = []
-    for product in products:
-        # Lấy variants active và có stock
-        variants = db.query(Variant).filter(
-            Variant.product_id == product.id,
-            Variant.is_active == True,
-            Variant.stock > 0
-        ).all()
-        
-        if variants:
-            variant_responses = [
-                VariantPublicResponse(
-                    id=v.id,
-                    product_id=v.product_id,
-                    name=v.name,
-                    price=v.price,
-                    stock=v.stock,
-                    is_active=v.is_active
-                ) for v in variants
-            ]
-            
-            result.append(ProductPublicResponse(
-                id=product.id,
-                store_id=product.store_id,
-                store_name=store.store_name,
-                name=product.name,
-                description=product.description,
-                category=product.category,
-                created_at=product.created_at,
-                variants=variant_responses
-            ))
-    
-    return result
+        search_term = f"%{search}%"
+        query = query.filter(Product.name.ilike(search_term))
 
-# GET /api/products/{product_id} - Xem chi tiết một product
-@router.get("/{product_id}", response_model=ProductPublicResponse)
-def get_product_detail(
-    product_id: int,
-    db: Session = Depends(get_db)
-):
-    """
-    Customer xem chi tiết một product (kèm tất cả variants)
-    """
-    product = db.query(Product).join(Store).join(User).filter(
-        Product.id == product_id,
-        Product.is_active == True,
-        Store.is_active == True,
-        User.is_approved == True,
-        User.role == "SELLER"
-    ).first()
-    
+    # --- Lọc theo Category ---
+    if category and category != "Tất cả":
+        query = query.filter(Product.category == category)
+
+    # --- Sắp xếp ---
+    if sort == "price-asc":
+        # Sắp xếp theo giá của biến thể đầu tiên (hơi phức tạp trong SQL thuần, nhưng logic tạm ở đây)
+        # Để đơn giản cho demo, ta sort theo ID hoặc rating trước
+        query = query.join(Variant).order_by(asc(Variant.price))
+    elif sort == "price-desc":
+        query = query.join(Variant).order_by(desc(Variant.price))
+    elif sort == "newest":
+        query = query.order_by(desc(Product.created_at))
+    else:
+        # Mặc định sắp xếp cái nào mới nhất lên đầu
+        query = query.order_by(desc(Product.id))
+
+    # Lấy dữ liệu phân trang
+    products = query.offset(skip).limit(limit).all()
+
+    # --- Map dữ liệu trả về ---
+    results = []
+    for p in products:
+        # Lấy giá từ biến thể đầu tiên (nếu có)
+        first_variant = p.variants[0] if p.variants else None
+        price = first_variant.price if first_variant else 0
+        market_price = first_variant.market_price if first_variant else 0
+
+        results.append(ProductListResponse(
+            id=p.id,
+            name=p.name,
+            slug=p.slug,
+            category=p.category,
+            description=p.description,
+            price=float(price),
+            market_price=float(market_price),
+            image_url=p.image_url,
+            rating_average=p.rating_average or 0.0,
+            review_count=p.review_count or 0,
+            store_name=p.store.store_name if p.store else "Unknown",
+            is_active=p.is_active
+        ))
+
+    return results
+
+@router.get("/{product_id}")
+def get_product_detail(product_id: int, db: Session = Depends(get_db)):
+    product = db.query(Product).filter(Product.id == product_id).first()
     if not product:
-        raise HTTPException(
-            status_code=404,
-            detail="Không tìm thấy product này"
-        )
+        raise HTTPException(status_code=404, detail="Product not found")
     
-    # Lấy tất cả variants active (kể cả stock = 0 để hiển thị "hết hàng")
-    variants = db.query(Variant).filter(
-        Variant.product_id == product_id,
-        Variant.is_active == True
-    ).all()
-    
-    
-    stats = db.query(
-        func.avg(Review.rating).label("average_rating"),
-        func.count(Review.id).label("review_count")
-    ).filter(Review.product_id == product_id).first()
-
-    variant_responses = [
-        VariantPublicResponse(
-            id=v.id,
-            product_id=v.product_id,
-            name=v.name,
-            price=v.price,
-            stock=v.stock,
-            is_active=v.is_active
-        ) for v in variants
-    ]
-    
-    return ProductPublicResponse(
-        id=product.id,
-        store_id=product.store_id,
-        store_name=product.store.store_name,
-        name=product.name,
-        description=product.description,
-        category=product.category,
-        created_at=product.created_at,
-        variants=variant_responses,
-        average_rating=stats.average_rating or 0,
-        review_count=stats.review_count or 0
-    )
+    # Nạp dữ liệu liên quan
+    # SQLAlchemy tự động lazy load variants, store, images nên ko cần join thủ công ở đây nếu ko cần filter
+    return product
