@@ -1,8 +1,3 @@
-/**
- * API Client Utility
- * Centralized API client với error handling, authentication, và response parsing
- */
-
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://13.212.128.129:8001/api'
 
 export interface ApiResponse<T = any> {
@@ -29,7 +24,7 @@ class ApiClient {
    */
   private getAuthToken(): string | null {
     if (typeof window === 'undefined') return null
-    return localStorage.getItem('access_token')
+    return localStorage.getItem('zenergy_token') || localStorage.getItem('access_token')
   }
 
   /**
@@ -71,7 +66,6 @@ class ApiClient {
     const contentType = response.headers.get('content-type')
     
     if (!contentType || !contentType.includes('application/json')) {
-      // Nếu không phải JSON, trả về empty object hoặc text
       const text = await response.text()
       return (text ? JSON.parse(text) : {}) as T
     }
@@ -93,12 +87,11 @@ class ApiClient {
       const contentType = response.headers.get('content-type')
       if (contentType && contentType.includes('application/json')) {
         errorData = await response.json()
-        errorMessage = errorData.message || errorData.error || errorMessage
+        errorMessage = errorData.message || errorData.error || errorData.detail || errorMessage
       } else {
         errorMessage = await response.text() || errorMessage
       }
     } catch (e) {
-      // Nếu không parse được error, dùng status text
       errorMessage = response.statusText || errorMessage
     }
 
@@ -118,7 +111,9 @@ class ApiClient {
     endpoint: string,
     options: RequestInit = {}
   ): Promise<T> {
-    const url = `${this.baseURL}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`
+    const url = endpoint.startsWith('http') 
+      ? endpoint 
+      : `${this.baseURL}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`
     
     const config: RequestInit = {
       ...options,
@@ -134,12 +129,10 @@ class ApiClient {
 
       return await this.parseResponse<T>(response)
     } catch (error) {
-      // Nếu là ApiError thì throw lại
       if (error && typeof error === 'object' && 'message' in error) {
         throw error
       }
 
-      // Network error hoặc lỗi khác
       throw {
         message: error instanceof Error ? error.message : 'Lỗi kết nối đến server',
         status: 0,
@@ -202,8 +195,8 @@ class ApiClient {
 }
 
 // Export singleton instance
-export const apiClient = new ApiClient(API_BASE_URL)
+const apiClient = new ApiClient(API_BASE_URL)
+export default apiClient
 
 // Export class để có thể tạo instance mới nếu cần
 export { ApiClient }
-

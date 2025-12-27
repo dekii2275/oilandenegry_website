@@ -18,6 +18,7 @@ interface LoginFormData {
 
 export default function LoginForm() {
   const [isLoading, setIsLoading] = useState(false)
+  const [apiError, setApiError] = useState<string | null>(null)
   const [rememberMe, setRememberMe] = useState(false)
   const router = useRouter()
   
@@ -31,13 +32,13 @@ export default function LoginForm() {
 
   const onSubmit = async (data: LoginFormData) => {
     setIsLoading(true)
+    setApiError(null)
     try {
       await loginUser(data.email, data.password)
-      // Redirect to dashboard
       router.push(ROUTES.DASHBOARD)
-    } catch (error) {
+    } catch (error: any) {
       console.error('Login error:', error)
-      // Handle error (show toast, etc.)
+      setApiError(error.message || 'Đăng nhập thất bại. Vui lòng thử lại.')
     } finally {
       setIsLoading(false)
     }
@@ -45,6 +46,12 @@ export default function LoginForm() {
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+      {apiError && (
+        <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-lg text-sm">
+          {apiError}
+        </div>
+      )}
+
       <AuthInput
         {...register('email')}
         type="text"
@@ -106,4 +113,3 @@ export default function LoginForm() {
     </form>
   )
 }
-
