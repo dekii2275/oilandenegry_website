@@ -7,11 +7,13 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
-      # (Đã xóa POSTGRES_HOST ở đây vì không cần thiết)
+    ports:             # <--- THÊM CÁI NÀY ĐỂ DÙNG DBEAVER
+      - "5432:5432"
     volumes:
       - pg_data:/var/lib/postgresql/data
       - ./backend/docker/db/init.sql:/docker-entrypoint-initdb.d/init.sql
 
+  # (Mongo giữ nguyên)
   mongo:
     image: mongo:6.0
     container_name: energy_mongo
@@ -22,6 +24,7 @@ services:
     volumes:
       - mongo_data:/data/db
 
+  # (Backend giữ nguyên)
   backend:
     build:
       context: ./backend
@@ -34,15 +37,11 @@ services:
     env_file:
       - .env
     environment:
-      # --- SỬA TẠI ĐÂY (QUAN TRỌNG) ---
-      # Backend cần các biến này để khớp với file config.py của bạn
-      POSTGRES_HOST: postgres        # <-- Backend nhìn sang container "postgres"
+      POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
-
-      # Mongo
       MONGO_URL: mongodb://${MONGO_USER}:${MONGO_PASSWORD}@mongo:27017
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000
     ports:
@@ -60,7 +59,8 @@ services:
     depends_on:
       - backend
     environment:
-      NEXT_PUBLIC_API_URL: /api
+      # 👇 SỬA DÒNG NÀY: Trỏ thẳng sang cổng 8001 của Backend
+      - NEXT_PUBLIC_API_URL=http://13.212.128.129:8001/api
     ports:
       - "3000:3000"
     volumes:
