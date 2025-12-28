@@ -316,7 +316,6 @@ export default function ProductDetailHeader({
           </button>
 
           <Link
-            onClick={handleDownloadReport}
             href="/market/report/slug"
             className="p-2.5 bg-[#71C291] hover:bg-[#5da97b] text-white rounded-xl font-bold text-sm transition-all flex items-center gap-2 shadow-lg shadow-green-100"
             title="Tạo báo cáo PDF chuyên sâu"

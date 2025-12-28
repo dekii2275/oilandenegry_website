@@ -173,7 +173,6 @@ export default function SidebarStats({ product }: SidebarStatsProps) {
       })
     );
 
-    // Tạo và tải file báo cáo đơn giản
     try {
       const reportContent = `
 Z-Energy Market Report

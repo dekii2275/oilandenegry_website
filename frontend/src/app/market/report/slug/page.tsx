@@ -305,7 +305,7 @@ Last Updated: ${
         {/* Header */}
         <div className="mb-8">
           <Link
-            href={`/market/product`}
+            href={`/market`}
             className="inline-flex items-center gap-2 text-green-600 hover:text-green-700 mb-4 no-print"
           >
             <ArrowLeft size={18} />
