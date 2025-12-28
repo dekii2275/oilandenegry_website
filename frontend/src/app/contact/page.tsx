@@ -142,7 +142,7 @@ const ContactPage = () => {
               HỖ TRỢ TƯ VẤN
             </div>
             <h1 className="text-5xl font-extrabold text-[#2D3436] mb-6 tracking-tight">
-              Liên hệ với <span className="text-[#55A67A]">Z-energy</span>
+              Liên hệ với <span className="text-[green]">Z-energy</span>
             </h1>
             <p className="max-w-2xl mx-auto text-gray-500 leading-relaxed text-sm">
               Chúng tôi luôn sẵn sàng lắng nghe và đồng hành cùng bạn trên hành
@@ -217,7 +217,7 @@ const ContactPage = () => {
                 <button
                   type="submit"
                   disabled={isLoading}
-                  className="w-full bg-[#76c893] hover:bg-[#65b381] text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:bg-gray-400 disabled:cursor-not-allowed"
+                  className="w-full bg-[#76c893] hover:bg-[#22c55e] text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:bg-gray-400 disabled:cursor-not-allowed"
                 >
                   {isLoading ? (
                     <Loader2 className="animate-spin" size={20} />

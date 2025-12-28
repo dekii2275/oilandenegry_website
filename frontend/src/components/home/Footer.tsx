@@ -96,7 +96,7 @@ export default function Footer() {
             <h4 className="text-white font-semibold mb-4 text-sm">Nền tảng</h4>
             <ul className="space-y-2 text-sm">
               <li>
-                <Link href="/products" className="hover:text-emerald-400">
+                <Link href="/market" className="hover:text-emerald-400">
                   Thị trường
                 </Link>
               </li>
