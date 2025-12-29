@@ -3,7 +3,7 @@
  * Service để handle authentication operations
  */
 
-import { apiClient } from '@/lib/api-client'
+import apiClient from '@/lib/api-client'
 import { API_ENDPOINTS } from '@/lib/api'
 import type { RegisterPayload, LoginPayload, AuthResponse } from '@/types/auth'
 
@@ -36,8 +36,10 @@ export const authService = {
       
       // Lưu token vào localStorage nếu có
       if (response.token && typeof window !== 'undefined') {
+        localStorage.setItem('zenergy_token', response.token)
         localStorage.setItem('access_token', response.token)
         if (response.user) {
+          localStorage.setItem('zenergy_user', JSON.stringify(response.user))
           localStorage.setItem('user', JSON.stringify(response.user))
         }
       }
@@ -63,6 +65,8 @@ export const authService = {
     } finally {
       // Luôn clear localStorage
       if (typeof window !== 'undefined') {
+        localStorage.removeItem('zenergy_token')
+        localStorage.removeItem('zenergy_user')
         localStorage.removeItem('access_token')
         localStorage.removeItem('user')
       }
@@ -74,7 +78,7 @@ export const authService = {
    */
   async getCurrentUser(): Promise<any> {
     try {
-      return await apiClient.get(API_ENDPOINTS.USERS.ME)
+      return await apiClient.get(API_ENDPOINTS.AUTH.ME)
     } catch (error) {
       console.error('Error fetching current user:', error)
       throw error
@@ -118,8 +122,8 @@ export const authService = {
   },
 }
 
-// Export alias để backward compatibility
-export const registerUser = authService.register
+// Export helper functions
+export const registerUser = (data: RegisterPayload) => authService.register(data)
 export const loginUser = (email: string, password: string) => 
   authService.login({ email, password })
-
+export const logoutUser = () => authService.logout()

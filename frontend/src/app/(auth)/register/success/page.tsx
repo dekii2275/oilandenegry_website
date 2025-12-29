@@ -1,26 +1,24 @@
-import SuccessNotification from '@/components/auth/SuccessNotification'
+'use client'
+import { useEffect } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 
-interface Props {
-  searchParams?: { email?: string }
-}
+export default function RegisterSuccessPage() {
+  const router = useRouter()
+  const params = useSearchParams()
+  const email = params.get('email')
 
-export default function RegisterSuccessPage({ searchParams }: Props) {
-  const email = searchParams?.email
+  useEffect(() => {
+    const t = setTimeout(() => {
+      router.replace('/')  // về trang chủ
+    }, 1500)
+    return () => clearTimeout(t)
+  }, [router])
 
   return (
-    <div 
-      className="min-h-screen flex items-center justify-center bg-cover bg-center bg-no-repeat relative px-6 py-12"
-      style={{
-        backgroundImage: "url('/assets/images/register_background.png')"
-      }}
-    >
-      {/* Background overlay */}
-      <div className="absolute inset-0 bg-black/20" />
-      
-      <div className="relative z-10 w-full">
-        <SuccessNotification variant="email" email={email} />
-      </div>
+    <div>
+      <h1>Đăng ký thành công</h1>
+      {email && <p>{email}</p>}
+      <p>Đang chuyển về trang chủ...</p>
     </div>
   )
 }
-

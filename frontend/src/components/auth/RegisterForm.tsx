@@ -36,26 +36,19 @@ export default function RegisterForm() {
     setApiError(null)
     try {
       const { confirmPassword, ...registerData } = data
-      // eslint-disable-next-line no-console
       console.log('Submitting registration:', registerData)
       
       const res = await registerUser(registerData)
-
-      // Debug log for development (helps track why navigation might not happen)
-      // eslint-disable-next-line no-console
       console.log('registerUser response:', res)
 
-      // Redirect to success page — prefer replace so user doesn't go back to form
+      // Redirect to success page
       const emailParam = encodeURIComponent(registerData.email)
-      // eslint-disable-next-line no-console
       console.log('Navigating to:', `${ROUTES.REGISTER_SUCCESS}?email=${emailParam}`)
       
-      await router.replace(`${ROUTES.REGISTER_SUCCESS}?email=${emailParam}`)
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Đăng ký thất bại'
-      // eslint-disable-next-line no-console
+      router.replace(`${ROUTES.REGISTER_SUCCESS}?email=${emailParam}`)
+    } catch (error: any) {
       console.error('Registration error:', error)
-      setApiError(errorMessage)
+      setApiError(error.message || 'Đăng ký thất bại. Vui lòng thử lại.')
     } finally {
       setIsLoading(false)
     }
@@ -64,7 +57,7 @@ export default function RegisterForm() {
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="w-full space-y-3">
       {apiError && (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg text-sm">
+        <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-lg text-sm">
           {apiError}
         </div>
       )}
@@ -119,7 +112,7 @@ export default function RegisterForm() {
 
       <div className="pt-1">
         <AuthButton type="submit" isLoading={isLoading}>
-          Đăng kí
+          Đăng ký
         </AuthButton>
       </div>
 
@@ -135,4 +128,3 @@ export default function RegisterForm() {
     </form>
   )
 }
-

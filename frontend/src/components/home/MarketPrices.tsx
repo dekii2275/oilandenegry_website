@@ -18,7 +18,7 @@ export default function MarketPrices() {
   useEffect(() => {
     const fetchMarketData = async () => {
       try {
-        const response = await fetch(API_ENDPOINTS.MARKET_DATA);
+        const response = await fetch(API_ENDPOINTS.MARKET.DATA);
         const data = await response.json();
         
         // Map dữ liệu từ API thành format component

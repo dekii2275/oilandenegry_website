@@ -12,7 +12,8 @@ from fastapi_mail import FastMail, MessageSchema, ConnectionConfig, MessageType
 from app.models.users import User, Token  # Thêm Token vào import
 from app.models.store import Store  # Thêm import
 from app.api.deps import get_current_user  # Thêm import
-
+import os
+frontend_url = os.getenv("FRONTEND_URL", "https://zenergy.cloud").rstrip("/")
 
 router = APIRouter()
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -75,10 +76,7 @@ async def register(
     token_data = {"sub": new_user.email, "type": "verification"}
     token = jwt.encode(token_data, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
-    # Nội dung email
-    domain = "http://13.212.128.129:8001"
-    # domain = "http://localhost:8000" 
-    verify_link = f"{domain}/api/auth/verify?token={token}"
+    verify_link = f"{frontend_url}/verify-email?token={token}"
     logo_url = "data/img/img_logo.png" 
     banner_url = "https://via.placeholder.com/600x200?text=Welcome+Banner"
     
@@ -237,9 +235,8 @@ async def forgot_password(
 
     # 3. Tạo link Reset
     # Thay IP này bằng IP Server AWS của bạn
-    domain = "http://13.212.128.129:8001"
-    # domain = "http://localhost:8000" 
-    reset_link = f"{domain}/reset-password.html?token={token}"
+    frontend_url = os.getenv("FRONTEND_URL", "https://zenergy.cloud").rstrip("/")
+    reset_link = f"{frontend_url}/reset-password?token={token}"
 
     # In ra terminal để debug nếu email không gửi được
     print(f"DEBUG - RESET LINK: {reset_link}")
