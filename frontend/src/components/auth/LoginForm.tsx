@@ -3,13 +3,14 @@
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { loginSchema } from '@/lib/validators/auth'
-import { loginUser } from '@/services/auth.service'
+import { loginUser } from '@/services/auth.service' // Import hàm login
 import AuthInput from './AuthInput'
 import AuthButton from './AuthButton'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { ROUTES } from '@/constants/routes'
 import Link from 'next/link'
+// import { getSafeErrorMessage } from '@/utils/error-handler' // Nếu bạn có file này thì uncomment
 
 interface LoginFormData {
   email: string
@@ -30,19 +31,32 @@ export default function LoginForm() {
     resolver: zodResolver(loginSchema),
   })
 
+  // --- PHẦN ĐÃ SỬA ---
   const onSubmit = async (data: LoginFormData) => {
     setIsLoading(true)
     setApiError(null)
+
     try {
-      await loginUser(data.email, data.password)
-      router.push(ROUTES.HOME)
+      // 1. Gọi API đăng nhập (Bước quan trọng bị thiếu)
+      await loginUser(data.email, data.password);
+
+      // 2. Nếu thành công -> Chuyển hướng về trang chủ hoặc Dashboard
+      // Đảm bảo ROUTES.HOME hoặc ROUTES.DASHBOARD tồn tại trong file constants
+      router.push(ROUTES.HOME || '/'); 
+      router.refresh(); // Refresh để cập nhật trạng thái Auth cho header
+
     } catch (error: any) {
       console.error('Login error:', error)
-      setApiError(error.message || 'Đăng nhập thất bại. Vui lòng thử lại.')
+      
+      // 3. Xử lý hiển thị lỗi (Dùng error.message vì đã xử lý ở service rồi)
+      const msg = error?.message || 'Đăng nhập thất bại. Vui lòng thử lại.';
+      setApiError(msg);
+
     } finally {
       setIsLoading(false)
     }
   }
+  // -------------------
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">

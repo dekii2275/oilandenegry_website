@@ -16,6 +16,11 @@ export const registerSchema = z
       .string()
       .min(1, 'Tên người dùng là bắt buộc')
       .min(3, 'Tên người dùng phải có ít nhất 3 ký tự'),
+      
+    full_name: z.string().min(1, 'Họ và tên là bắt buộc'),
+    phone_number: z.string().min(1, 'Số điện thoại là bắt buộc'),
+    address: z.string().min(1, 'Địa chỉ là bắt buộc'),
+
     password: z
       .string()
       .min(8, 'Mật khẩu phải có ít nhất 8 ký tự')

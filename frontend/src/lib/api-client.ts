@@ -1,5 +1,5 @@
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '/api'
-
+// --- FILE: src/lib/api-client.ts ---
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '';
 
 export interface ApiResponse<T = any> {
   data?: T
@@ -13,11 +13,16 @@ export interface ApiError {
   data?: any
 }
 
+// 👇 ĐỊNH NGHĨA LẠI KIỂU DỮ LIỆU ĐỂ HỖ TRỢ PARAMS 👇
+interface CustomRequestInit extends RequestInit {
+  params?: Record<string, any>;
+}
+
 class ApiClient {
   private baseURL: string
 
   constructor(baseURL: string) {
-    this.baseURL = baseURL
+    this.baseURL = (baseURL || '').replace(/\/+$/, '')
   }
 
   /**
@@ -68,7 +73,8 @@ class ApiClient {
     
     if (!contentType || !contentType.includes('application/json')) {
       const text = await response.text()
-      return (text ? JSON.parse(text) : {}) as T
+      // Nếu không phải JSON, trả về text hoặc object rỗng để tránh lỗi parse
+      return (text ? { message: text } : {}) as unknown as T
     }
 
     const data = await response.json()
@@ -79,6 +85,7 @@ class ApiClient {
 
   /**
    * Handle errors một cách nhất quán
+   * Đã tích hợp logic chống Crash React (Object as Child)
    */
   private async handleError(response: Response): Promise<never> {
     let errorMessage = 'Có lỗi xảy ra'
@@ -88,7 +95,24 @@ class ApiClient {
       const contentType = response.headers.get('content-type')
       if (contentType && contentType.includes('application/json')) {
         errorData = await response.json()
-        errorMessage = errorData.message || errorData.error || errorData.detail || errorMessage
+        
+        // --- XỬ LÝ LỖI THÔNG MINH ---
+        const rawMessage = errorData.message || errorData.error || errorData.detail || errorMessage;
+        
+        // 1. Nếu là Array (Lỗi validation FastAPI/Pydantic) -> Lấy msg đầu tiên
+        if (Array.isArray(rawMessage)) {
+             errorMessage = rawMessage[0]?.msg || JSON.stringify(rawMessage);
+        }
+        // 2. Nếu là Object khác -> Ép sang chuỗi JSON
+        else if (typeof rawMessage === 'object') {
+            errorMessage = JSON.stringify(rawMessage); 
+        } 
+        // 3. Nếu là String -> Dùng luôn
+        else {
+            errorMessage = String(rawMessage);
+        }
+        // -----------------------------
+
       } else {
         errorMessage = await response.text() || errorMessage
       }
@@ -97,7 +121,7 @@ class ApiClient {
     }
 
     const error: ApiError = {
-      message: errorMessage,
+      message: errorMessage, // Đảm bảo luôn là String
       status: response.status,
       data: errorData,
     }
@@ -110,15 +134,29 @@ class ApiClient {
    */
   private async request<T>(
     endpoint: string,
-    options: RequestInit = {}
+    options: CustomRequestInit = {} // Sử dụng CustomRequestInit thay vì RequestInit
   ): Promise<T> {
-    const url = endpoint.startsWith('http') 
-      ? endpoint 
-      : `${this.baseURL}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`
     
+    // ✅ SỬ DỤNG LET ĐỂ CÓ THỂ CỘNG CHUỖI
+    let url = endpoint.startsWith('http') 
+        ? endpoint 
+        : `${this.baseURL}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
+
     const config: RequestInit = {
       ...options,
       headers: this.buildHeaders(options.headers),
+    }
+
+    // Xử lý params (Query String)
+    if (options.params) {
+      const searchParams = new URLSearchParams();
+      Object.entries(options.params).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+            searchParams.append(key, String(value));
+        }
+      });
+      const separator = url.includes('?') ? '&' : '?';
+      url += separator + searchParams.toString(); // ✅ Hợp lệ vì url là 'let'
     }
 
     try {
@@ -130,10 +168,12 @@ class ApiClient {
 
       return await this.parseResponse<T>(response)
     } catch (error) {
+      // Nếu lỗi đã được xử lý (có message là string), ném tiếp
       if (error && typeof error === 'object' && 'message' in error) {
         throw error
       }
 
+      // Lỗi mạng hoặc lỗi không xác định
       throw {
         message: error instanceof Error ? error.message : 'Lỗi kết nối đến server',
         status: 0,
@@ -144,7 +184,7 @@ class ApiClient {
   /**
    * GET request
    */
-  async get<T>(endpoint: string, options?: RequestInit): Promise<T> {
+  async get<T>(endpoint: string, options?: CustomRequestInit): Promise<T> {
     return this.request<T>(endpoint, {
       ...options,
       method: 'GET',
@@ -154,7 +194,7 @@ class ApiClient {
   /**
    * POST request
    */
-  async post<T>(endpoint: string, data?: any, options?: RequestInit): Promise<T> {
+  async post<T>(endpoint: string, data?: any, options?: CustomRequestInit): Promise<T> {
     return this.request<T>(endpoint, {
       ...options,
       method: 'POST',
@@ -165,7 +205,7 @@ class ApiClient {
   /**
    * PUT request
    */
-  async put<T>(endpoint: string, data?: any, options?: RequestInit): Promise<T> {
+  async put<T>(endpoint: string, data?: any, options?: CustomRequestInit): Promise<T> {
     return this.request<T>(endpoint, {
       ...options,
       method: 'PUT',
@@ -176,7 +216,7 @@ class ApiClient {
   /**
    * PATCH request
    */
-  async patch<T>(endpoint: string, data?: any, options?: RequestInit): Promise<T> {
+  async patch<T>(endpoint: string, data?: any, options?: CustomRequestInit): Promise<T> {
     return this.request<T>(endpoint, {
       ...options,
       method: 'PATCH',
@@ -187,7 +227,7 @@ class ApiClient {
   /**
    * DELETE request
    */
-  async delete<T>(endpoint: string, options?: RequestInit): Promise<T> {
+  async delete<T>(endpoint: string, options?: CustomRequestInit): Promise<T> {
     return this.request<T>(endpoint, {
       ...options,
       method: 'DELETE',
@@ -196,8 +236,7 @@ class ApiClient {
 }
 
 // Export singleton instance
-const apiClient = new ApiClient(API_BASE_URL)
-export default apiClient
+export const apiClient = new ApiClient(API_BASE_URL)
 
-// Export class để có thể tạo instance mới nếu cần
+// Export class
 export { ApiClient }

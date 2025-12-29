@@ -10,11 +10,8 @@ export interface LoginPayload {
 }
 
 export interface AuthResponse {
-  token: string
-  user: {
-    id: string
-    email: string
-    fullName?: string
-  }
+  access_token: string
+  token_type?: string
 }
+
 

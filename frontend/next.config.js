@@ -1,17 +1,13 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  reactStrictMode: true,
+
   images: {
-    domains: [
-      "images.unsplash.com", 
-      "plus.unsplash.com",
-      "via.placeholder.com"
-    ],
-    // Hoặc dùng remotePatterns (cho Next.js bản mới):
+    // Chỉ cho phép các host bạn thật sự dùng
     remotePatterns: [
-      {
-        protocol: "https",
-        hostname: "**", // Chấp nhận mọi ảnh (cho tiện lúc dev)
-      },
+      { protocol: "https", hostname: "images.unsplash.com", pathname: "/**" },
+      { protocol: "https", hostname: "plus.unsplash.com", pathname: "/**" },
+      { protocol: "https", hostname: "via.placeholder.com", pathname: "/**" },
     ],
   },
 };

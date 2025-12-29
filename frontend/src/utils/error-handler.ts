@@ -11,6 +11,20 @@ export interface ErrorMessage {
   type: 'error' | 'warning' | 'info'
 }
 
+export function getSafeErrorMessage(message: any): string {
+  if (!message) return 'Đã có lỗi xảy ra.';
+  
+  if (typeof message === 'string') {
+    return message;
+  }
+  
+  if (typeof message === 'object' || Array.isArray(message)) {
+    console.error("Chi tiết lỗi từ API:", message);
+    return "Thông tin không đúng định dạng. Vui lòng kiểm tra lại.";
+  }
+  
+  return String(message);
+}
 /**
  * Format error thành message dễ hiểu cho user
  */
@@ -36,7 +50,7 @@ export function formatError(error: any): ErrorMessage {
       case 404:
         return {
           title: 'Không tìm thấy',
-          message: apiError.message || 'Dữ liệu bạn tìm kiếm không tồn tại',
+          message: getSafeErrorMessage(apiError.message) || 'Dữ liệu bạn tìm kiếm không tồn tại',
           type: 'info',
         }
       case 500:
@@ -50,7 +64,7 @@ export function formatError(error: any): ErrorMessage {
       default:
         return {
           title: 'Có lỗi xảy ra',
-          message: apiError.message || 'Vui lòng thử lại sau',
+          message: getSafeErrorMessage(apiError.message) || 'Vui lòng thử lại sau',
           type: 'error',
         }
     }

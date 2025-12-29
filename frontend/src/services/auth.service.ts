@@ -3,51 +3,92 @@
  * Service để handle authentication operations
  */
 
-import apiClient from '@/lib/api-client'
-import { API_ENDPOINTS } from '@/lib/api'
+import { apiClient } from '@/lib/api-client'
 import type { RegisterPayload, LoginPayload, AuthResponse } from '@/types/auth'
+
+// Định nghĩa các đường dẫn API trực tiếp tại đây (KHÔNG CÓ /api ở đầu)
+const AUTH_URL = '/auth'
+const USERS_URL = '/users'
+
+// --- HÀM XỬ LÝ LỖI CHUNG (QUAN TRỌNG) ---
+// Hàm này giúp biến mọi object lỗi phức tạp thành chuỗi string đơn giản
+const handleApiError = (error: any) => {
+  // 1. Check lỗi từ backend FastAPI/Pydantic (Validation Error)
+  if (error.response?.data?.detail) {
+    const detail = error.response.data.detail;
+    
+    // Nếu là mảng lỗi (Ví dụ: [{msg: "...", type: "..."}])
+    if (Array.isArray(detail)) {
+      return detail[0]?.msg || "Dữ liệu không hợp lệ";
+    }
+    // Nếu là string lỗi trực tiếp
+    if (typeof detail === 'string') {
+      return detail;
+    }
+    // Nếu là object khác -> ép sang string JSON để debug
+    return JSON.stringify(detail);
+  }
+
+  // 2. Check lỗi message thông thường
+  if (error.message) {
+    return error.message;
+  }
+
+  // 3. Fallback
+  return "Đã xảy ra lỗi không xác định.";
+};
 
 export const authService = {
   /**
    * Đăng ký user mới
+   * Endpoint: /auth/register
    */
   async register(payload: RegisterPayload): Promise<AuthResponse | { success: boolean }> {
     try {
       const response = await apiClient.post<AuthResponse | { success: boolean }>(
-        API_ENDPOINTS.AUTH.REGISTER,
+        `${AUTH_URL}/register`, 
         payload
       )
       return response
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error registering user:', error)
-      throw error
+      // Ném ra Error mới chỉ chứa string message -> UI không bị crash
+      throw new Error(handleApiError(error));
     }
   },
 
   /**
    * Đăng nhập
+   * Endpoint: /auth/login
    */
   async login(payload: LoginPayload): Promise<AuthResponse> {
     try {
       const response = await apiClient.post<AuthResponse>(
-        API_ENDPOINTS.AUTH.LOGIN,
+        `${AUTH_URL}/login`,
         payload
       )
       
-      // Lưu token vào localStorage nếu có
-      if (response.token && typeof window !== 'undefined') {
-        localStorage.setItem('zenergy_token', response.token)
-        localStorage.setItem('access_token', response.token)
-        if (response.user) {
-          localStorage.setItem('zenergy_user', JSON.stringify(response.user))
-          localStorage.setItem('user', JSON.stringify(response.user))
-        }
+      if (response.access_token && typeof window !== 'undefined') {
+        localStorage.setItem('zenergy_token', response.access_token)
+        localStorage.setItem('access_token', response.access_token)
       }
       
+      // Lấy thông tin user ngay sau khi login để lưu vào storage
+      if (typeof window !== 'undefined') {
+        try {
+            const user = await authService.getCurrentUser()
+            localStorage.setItem('zenergy_user', JSON.stringify(user))
+            localStorage.setItem('user', JSON.stringify(user))
+        } catch (e) {
+            console.warn("Không thể lấy thông tin user sau khi login:", e)
+        }
+      }
+
       return response
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error logging in:', error)
-      throw error
+      // Xử lý lỗi sạch sẽ trước khi ném ra ngoài
+      throw new Error(handleApiError(error));
     }
   },
 
@@ -56,11 +97,10 @@ export const authService = {
    */
   async logout(): Promise<void> {
     try {
-      // Gọi API logout nếu có
       try {
-        await apiClient.post(API_ENDPOINTS.AUTH.LOGOUT)
+        await apiClient.post(`${AUTH_URL}/logout`)
       } catch (e) {
-        // Nếu API chưa có, chỉ cần clear localStorage
+        // Backend có thể không có endpoint logout, bỏ qua lỗi
       }
     } finally {
       // Luôn clear localStorage
@@ -75,13 +115,33 @@ export const authService = {
 
   /**
    * Lấy thông tin user hiện tại
+   * Endpoint thường là: /users/me
    */
   async getCurrentUser(): Promise<any> {
     try {
-      return await apiClient.get(API_ENDPOINTS.AUTH.ME)
-    } catch (error) {
+      return await apiClient.get(`${USERS_URL}/me`)
+    } catch (error: any) {
+      // Không ném lỗi ở đây để tránh crash AuthProvider khi token hết hạn
+      // Chỉ log và ném tiếp để AuthProvider xử lý logout
       console.error('Error fetching current user:', error)
-      throw error
+      throw error; 
+    }
+  },
+
+  /**
+   * Cập nhật thông tin user
+   */
+   async updateCurrentUser(payload: {
+    full_name?: string | null
+    avatar_url?: string | null
+    phone_number?: string | null
+    address?: string | null
+  }): Promise<any> {
+    try {
+      return await apiClient.put(`${USERS_URL}/me`, payload)
+    } catch (error: any) {
+      console.error('Error updating current user:', error)
+      throw new Error(handleApiError(error));
     }
   },
 
@@ -90,10 +150,10 @@ export const authService = {
    */
   async forgotPassword(email: string): Promise<{ message: string }> {
     try {
-      return await apiClient.post(API_ENDPOINTS.AUTH.FORGOT_PASSWORD, { email })
-    } catch (error) {
+      return await apiClient.post(`${AUTH_URL}/forgot-password`, { email })
+    } catch (error: any) {
       console.error('Error requesting password reset:', error)
-      throw error
+      throw new Error(handleApiError(error));
     }
   },
 
@@ -102,22 +162,25 @@ export const authService = {
    */
   async resetPassword(token: string, password: string): Promise<{ message: string }> {
     try {
-      return await apiClient.post(API_ENDPOINTS.AUTH.RESET_PASSWORD, { token, password })
-    } catch (error) {
+      return await apiClient.post(`${AUTH_URL}/reset-password`, { token, password })
+    } catch (error: any) {
       console.error('Error resetting password:', error)
-      throw error
+      throw new Error(handleApiError(error));
     }
   },
 
   /**
-   * Verify email
+   * Verify email - CHỖ NÀY ĐÃ ĐƯỢC FIX
    */
   async verifyEmail(token: string): Promise<{ message: string }> {
     try {
-      return await apiClient.get(`${API_ENDPOINTS.AUTH.VERIFY_EMAIL}?token=${token}`)
-    } catch (error) {
+      // Lưu ý: Nếu backend của bạn yêu cầu POST thay vì GET, hãy đổi thành .post
+      // Nhưng dựa vào log ảnh trước đó (GET 422), tôi giữ nguyên là .get
+      return await apiClient.get(`${AUTH_URL}/verify`, { params: { token } })
+    } catch (error: any) {
       console.error('Error verifying email:', error)
-      throw error
+      // QUAN TRỌNG: Ném ra Error string, không ném raw object
+      throw new Error(handleApiError(error));
     }
   },
 }

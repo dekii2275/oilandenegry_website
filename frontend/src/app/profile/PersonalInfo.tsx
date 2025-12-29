@@ -80,7 +80,7 @@ export default function PersonalInfo() {
 
   const handleSaveInfo = async () => {
     try {
-      if (useMockData || !process.env.NEXT_PUBLIC_API_URL) {
+      if (useMockData) {
         setProfileData((prev) => ({
           ...prev,
           ...editForm,

@@ -1,17 +1,11 @@
-// app/providers/AuthProvider.tsx
 "use client";
 
-import React, {
-  createContext,
-  useContext,
-  useState,
-  useEffect,
-  ReactNode,
-} from "react";
+import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { loginUser, authService } from "@/services/auth.service";
 
 interface User {
   id: string;
-  name: string;
+  name?: string;
   email: string;
   avatar?: string;
   role?: string;
@@ -37,100 +31,101 @@ const AuthContext = createContext<AuthContextType>({
   updateAvatar: () => {},
 });
 
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error("useAuth must be used within an AuthProvider");
-  }
-  return context;
-};
+export const useAuth = () => useContext(AuthContext);
 
 interface AuthProviderProps {
   children: ReactNode;
 }
 
+// --- HÀM HELPER: Lọc lỗi sạch sẽ (Nguyên nhân chính gây crash) ---
+const getSafeErrorMessage = (error: any): string => {
+  // 1. Ưu tiên lấy lỗi từ response của Backend (FastAPI/Pydantic)
+  const detail = error?.response?.data?.detail;
+  
+  if (detail) {
+    // Nếu là mảng lỗi (trường hợp bạn đang gặp) -> lấy msg đầu tiên
+    if (Array.isArray(detail)) {
+      return detail[0]?.msg || "Lỗi dữ liệu không hợp lệ";
+    }
+    // Nếu là string
+    if (typeof detail === "string") {
+      return detail;
+    }
+    // Nếu là object khác -> ép sang string
+    return JSON.stringify(detail);
+  }
+
+  // 2. Lấy từ message của Error object
+  if (error?.message) return error.message;
+
+  // 3. Fallback cuối cùng
+  return "Đăng nhập thất bại. Vui lòng thử lại.";
+};
+
 export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Load user từ localStorage khi component mount
   useEffect(() => {
-    const loadUserFromStorage = () => {
-      try {
-        const savedUser = localStorage.getItem("zenergy_user");
-        if (savedUser) {
-          const parsedUser = JSON.parse(savedUser);
-          setUser(parsedUser);
-        }
-        // Để test: tự động đăng nhập với user giả định
-        else if (process.env.NODE_ENV === "development") {
-          const mockUser: User = {
-            id: "1",
-            name: "Nguyễn Văn A",
-            email: "test@example.com",
-            avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=test",
-            role: "customer",
-          };
-          setUser(mockUser);
-          localStorage.setItem("zenergy_user", JSON.stringify(mockUser));
-          localStorage.setItem("zenergy_token", "mock_jwt_token_" + Date.now());
-        }
-      } catch (error) {
-        console.error("Error loading user from storage:", error);
-      } finally {
-        setIsLoading(false);
+    try {
+      const savedUser = localStorage.getItem("zenergy_user");
+      if (savedUser) {
+         // Thêm try-catch nhỏ ở đây đề phòng localStorage chứa rác gây crash
+         try {
+             const parsed = JSON.parse(savedUser);
+             // Chỉ set nếu parsed là object hợp lệ
+             if (parsed && typeof parsed === 'object') {
+                 setUser(parsed);
+             }
+         } catch(e) {
+             console.error("Lỗi parse user từ storage", e);
+             localStorage.removeItem("zenergy_user"); // Xóa nếu lỗi
+         }
       }
-    };
-
-    loadUserFromStorage();
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
-
-  // Cập nhật thông tin user
-  const updateUser = (updates: Partial<User>) => {
-    setUser((prevUser) => {
-      if (!prevUser) return prevUser;
-
-      const updatedUser = { ...prevUser, ...updates };
-
-      // Lưu vào localStorage để đồng bộ
-      localStorage.setItem("zenergy_user", JSON.stringify(updatedUser));
-
-      return updatedUser;
-    });
-  };
-
-  // Cập nhật avatar cụ thể
-  const updateAvatar = (avatarUrl: string) => {
-    setUser((prevUser) => {
-      if (!prevUser) return prevUser;
-
-      const updatedUser = { ...prevUser, avatar: avatarUrl };
-
-      // Lưu vào localStorage để đồng bộ
-      localStorage.setItem("zenergy_user", JSON.stringify(updatedUser));
-
-      return updatedUser;
-    });
-  };
 
   const login = async (email: string, password: string): Promise<void> => {
     setIsLoading(true);
     try {
-      // Mock data cho development
-      const mockUser: User = {
-        id: "1",
-        name: "Nguyễn Văn A",
-        email: email,
-        avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=" + email,
-        role: "customer",
-      };
+      // 1) login -> lưu token (đã làm trong auth.service)
+      await loginUser(email, password);
 
-      setUser(mockUser);
-      localStorage.setItem("zenergy_user", JSON.stringify(mockUser));
-      localStorage.setItem("zenergy_token", "mock_jwt_token_" + Date.now());
-    } catch (error) {
-      console.error("Login error:", error);
-      throw new Error("Đăng nhập thất bại. Vui lòng thử lại.");
+      // 2) nếu có pending profile từ lúc register thì update luôn
+      const pendingRaw = localStorage.getItem("zenergy_pending_profile");
+      if (pendingRaw) {
+        try {
+            const pending = JSON.parse(pendingRaw);
+            await authService.updateCurrentUser({
+                full_name: pending.full_name,
+                phone_number: pending.phone_number,
+                address: pending.address,
+            });
+            localStorage.removeItem("zenergy_pending_profile");
+        } catch (parseError) {
+            console.error("Lỗi xử lý pending profile:", parseError);
+        }
+      }
+
+      // 3) lấy user mới nhất và lưu vào storage + state
+      const user = await authService.getCurrentUser();
+      localStorage.setItem("zenergy_user", JSON.stringify(user));
+      localStorage.setItem("user", JSON.stringify(user));
+      setUser(user);
+
+    } catch (error: any) {
+      console.error("Login error (Raw):", error);
+      
+      // --- SỬA LỖI TẠI ĐÂY ---
+      // Dùng hàm helper để lấy chuỗi text an toàn
+      const safeMessage = getSafeErrorMessage(error);
+      
+      // Ném ra một Error object mới chỉ chứa string message
+      // Component Login bên ngoài sẽ catch được cái này và render safeMessage (là string) -> KHÔNG CRASH
+      throw new Error(safeMessage);
+      
     } finally {
       setIsLoading(false);
     }
@@ -140,37 +135,35 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setUser(null);
     localStorage.removeItem("zenergy_user");
     localStorage.removeItem("zenergy_token");
-    if (typeof window !== "undefined") {
-      window.location.href = "/";
-    }
+    localStorage.removeItem("access_token");
+    localStorage.removeItem("user");
+    window.location.href = "/"; // Dùng replace hoặc push của router sẽ mượt hơn, nhưng href an toàn nhất để clear state
   };
 
-  const value: AuthContextType = {
-    user,
-    isAuthenticated: !!user,
-    login,
-    logout,
-    isLoading,
-    updateUser,
-    updateAvatar,
+  const updateUser = (updates: Partial<User>) => {
+    setUser((prev) => {
+      if (!prev) return prev;
+      const next = { ...prev, ...updates };
+      localStorage.setItem("zenergy_user", JSON.stringify(next));
+      return next;
+    });
   };
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  const updateAvatar = (avatarUrl: string) => updateUser({ avatar: avatarUrl });
+
+  return (
+    <AuthContext.Provider
+      value={{
+        user,
+        isAuthenticated: !!user,
+        login,
+        logout,
+        isLoading,
+        updateUser,
+        updateAvatar,
+      }}
+    >
+      {children}
+    </AuthContext.Provider>
+  );
 }
-
-// Helper functions
-export const getCurrentUser = (): User | null => {
-  if (typeof window === "undefined") return null;
-  try {
-    const savedUser = localStorage.getItem("zenergy_user");
-    return savedUser ? JSON.parse(savedUser) : null;
-  } catch (error) {
-    console.error("Error getting current user:", error);
-    return null;
-  }
-};
-
-export const getAuthToken = (): string | null => {
-  if (typeof window === "undefined") return null;
-  return localStorage.getItem("zenergy_token");
-};
