@@ -89,6 +89,19 @@ const financeMenu = [
   },
 ];
 
+const settingsMenu = [
+  {
+    label: "Cài đặt cửa hàng",
+    href: "/seller/settings",
+    icon: (
+      <svg width="24" height="29" viewBox="0 0 24 29" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path d="M19.43 12.98C19.47 12.66 19.5 12.34 19.5 12C19.5 11.66 19.47 11.34 19.43 11.02L21.64 9.37C21.82 9.22 21.89 8.95 21.73 8.73L19.73 5.27C19.57 5.05 19.29 4.98 19.05 5.08L16.36 6.35C15.9 5.97 15.38 5.66 14.81 5.43L14.4 2.43C14.37 2.18 14.16 2 13.92 2H10.08C9.84 2 9.63 2.18 9.6 2.43L9.19 5.43C8.62 5.66 8.1 5.98 7.64 6.35L4.95 5.08C4.71 4.98 4.43 5.05 4.27 5.27L2.27 8.73C2.11 8.95 2.18 9.22 2.36 9.37L4.57 11.02C4.53 11.34 4.5 11.67 4.5 12C4.5 12.33 4.53 12.66 4.57 12.98L2.36 14.63C2.18 14.78 2.11 15.05 2.27 15.27L4.27 18.73C4.43 18.95 4.71 19.02 4.95 18.92L7.64 17.65C8.1 18.03 8.62 18.34 9.19 18.57L9.6 21.57C9.63 21.82 9.84 22 10.08 22H13.92C14.16 22 14.37 21.82 14.4 21.57L14.81 18.57C15.38 18.34 15.9 18.02 16.36 17.65L19.05 18.92C19.29 19.02 19.57 18.95 19.73 18.73L21.73 15.27C21.89 15.05 21.82 14.78 21.64 14.63L19.43 12.98ZM12 15.5C10.57 15.5 9.5 14.43 9.5 13C9.5 11.57 10.57 10.5 12 10.5C13.43 10.5 14.5 11.57 14.5 13C14.5 14.43 13.43 15.5 12 15.5Z" fill="#4B5563"/>
+</svg>
+
+    ),
+  },
+];
+
 /* =======================
    COMPONENT
    ======================= */
@@ -136,6 +149,17 @@ export default function SellerSidebar() {
           />
         ))}
       </SidebarSection>
+
+      {/* ===== CÀI ĐẶT ===== */}
+      <SidebarSection title="Cài đặt">
+        {settingsMenu.map((item) => (
+          <SidebarItem
+            key={item.href}
+            {...item}
+            active={pathname === item.href}
+          />
+        ))}
+      </SidebarSection>
     </aside>
   );
 }
@@ -166,24 +190,44 @@ function SidebarItem({
   label,
   icon,
   active,
+  badge,
 }: {
   href: string;
   label: string;
   icon: React.ReactNode;
   active: boolean;
+  badge?: number;
 }) {
   return (
     <Link
       href={href}
       className={clsx(
-        "flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition",
+        "flex items-center justify-between px-4 py-2 text-sm transition",
         active
-          ? "bg-green-100 text-green-700 font-medium"
-          : "text-gray-600 hover:bg-gray-100"
+          ? "bg-green-50 text-green-700 font-medium rounded-full"
+          : "text-gray-600 hover:bg-gray-100 rounded-lg"
       )}
     >
-      <div className="w-5 h-5">{icon}</div>
-      <span>{label}</span>
+      {/* LEFT: ICON + LABEL */}
+      <div className="flex items-center gap-3">
+        <div
+          className={clsx(
+            "w-5 h-5 flex items-center justify-center",
+            active ? "text-green-600" : "text-gray-500"
+          )}
+        >
+          {icon}
+        </div>
+        <span>{label}</span>
+      </div>
+
+      {/* RIGHT: BADGE */}
+      {badge && (
+        <span className="min-w-[20px] h-5 px-1 flex items-center justify-center text-xs font-medium text-white bg-red-500 rounded-full">
+          {badge}
+        </span>
+      )}
     </Link>
   );
 }
+
