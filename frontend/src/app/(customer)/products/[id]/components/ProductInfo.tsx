@@ -18,6 +18,7 @@ interface ProductInfoProps {
   product: ProductDetail;
   quantity: number;
   isInWishlist: boolean;
+  isLoading?: boolean;
   onQuantityChange: (type: "increase" | "decrease") => void;
   onRequestQuote: () => void;
   onAddToCart: () => void;
@@ -29,6 +30,7 @@ const ProductInfo: React.FC<ProductInfoProps> = ({
   product,
   quantity,
   isInWishlist,
+  isLoading = false,
   onQuantityChange,
   onRequestQuote,
   onAddToCart,
@@ -163,31 +165,52 @@ const ProductInfo: React.FC<ProductInfoProps> = ({
         {/* Nút Yêu cầu báo giá */}
         <button
           onClick={onRequestQuote}
-          className="flex-1 py-4 font-semibold text-white hover:opacity-90 transition flex items-center justify-center gap-2"
+          disabled={isLoading}
+          className="flex-1 py-4 font-semibold text-white hover:opacity-90 transition flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
           style={{ backgroundColor: "#10B981", borderRadius: "9999px" }}
         >
-          <ShoppingCart className="w-5 h-5" />
-          Yêu cầu báo giá
+          {isLoading ? (
+            <span className="flex items-center gap-2">
+              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+              Đang xử lý...
+            </span>
+          ) : (
+            <>
+              <ShoppingCart className="w-5 h-5" />
+              Yêu cầu báo giá
+            </>
+          )}
         </button>
 
         {/* Nút Thêm vào giỏ hàng */}
         <button
           onClick={onAddToCart}
-          className="flex-1 py-4 font-semibold border-2 hover:bg-opacity-10 transition flex items-center justify-center gap-2"
+          disabled={isLoading}
+          className="flex-1 py-4 font-semibold border-2 hover:bg-opacity-10 transition flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
           style={{
             borderColor: "#10B981",
             color: "#10B981",
             borderRadius: "9999px",
           }}
         >
-          <ShoppingCart className="w-5 h-5" />
-          Thêm vào giỏ hàng
+          {isLoading ? (
+            <span className="flex items-center gap-2">
+              <div className="w-4 h-4 border-2 border-green-500 border-t-transparent rounded-full animate-spin"></div>
+              Đang thêm...
+            </span>
+          ) : (
+            <>
+              <ShoppingCart className="w-5 h-5" />
+              Thêm vào giỏ hàng
+            </>
+          )}
         </button>
 
         {/* Nút Yêu thích */}
         <button
           onClick={onToggleWishlist}
-          className={`w-14 h-14 border-2 flex items-center justify-center transition ${
+          disabled={isLoading}
+          className={`w-14 h-14 border-2 flex items-center justify-center transition disabled:opacity-50 disabled:cursor-not-allowed ${
             isInWishlist
               ? "border-red-500 bg-red-50"
               : "border-gray-300 hover:border-green-600 hover:bg-green-50"

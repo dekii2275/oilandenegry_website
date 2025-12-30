@@ -38,6 +38,7 @@ export default function ProductDetailPage() {
     reviewFilter,
     displayedReviews,
     isInWishlist,
+    isLoading,
     reviewsRef,
     setSelectedImage,
     handleQuantityChange,
@@ -134,6 +135,7 @@ export default function ProductDetailPage() {
             product={product}
             quantity={quantity}
             isInWishlist={isInWishlist}
+            isLoading={isLoading}
             onQuantityChange={handleQuantityChange}
             onRequestQuote={handleRequestQuote}
             onAddToCart={handleAddToCart}

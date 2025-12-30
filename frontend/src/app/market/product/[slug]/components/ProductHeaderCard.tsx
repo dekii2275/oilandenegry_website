@@ -132,7 +132,7 @@ export default function ProductHeaderCard({ product }: ProductHeaderCardProps) {
 
       // Chờ một chút rồi chuyển đến trang thanh toán
       setTimeout(() => {
-        router.push("/checkout");
+        router.push("/cart/checkout");
       }, 1000);
     } catch (error) {
       console.error("Lỗi khi mua ngay:", error);

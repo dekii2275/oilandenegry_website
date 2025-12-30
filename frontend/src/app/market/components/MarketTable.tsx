@@ -6,13 +6,21 @@ import { useRouter } from "next/navigation";
 import { LineChart, Line, ResponsiveContainer } from "recharts";
 import { detailedPrices } from "../utils/marketData";
 
+const generateSlug = (name: string): string => {
+  return name
+    .toLowerCase()
+    .replace(/[^\w\s]/g, "")
+    .replace(/\s+/g, "-")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+};
+
 export default function MarketTable() {
   const router = useRouter();
   const [searchTerm, setSearchTerm] = useState("");
   const [mounted, setMounted] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
 
-  // Logic cho nút Lọc (Filter)
   const [showFilterMenu, setShowFilterMenu] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState("Tất cả");
   const filterRef = useRef<HTMLDivElement>(null);
@@ -31,7 +39,6 @@ export default function MarketTable() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Danh mục lọc dựa trên dữ liệu thật
   const categories = [
     "Tất cả",
     "Dầu thô & Nhiên liệu",
@@ -40,8 +47,12 @@ export default function MarketTable() {
     "Máy phát điện",
   ];
 
-  // Logic kết hợp: Tìm kiếm + Lọc theo loại
-  const filteredPrices = detailedPrices.filter((item) => {
+  const processedPrices = detailedPrices.map((item) => ({
+    ...item,
+    slug: item.slug || generateSlug(item.name),
+  }));
+
+  const filteredPrices = processedPrices.filter((item) => {
     const matchesSearch = item.name
       .toLowerCase()
       .includes(searchTerm.toLowerCase());
@@ -53,6 +64,10 @@ export default function MarketTable() {
   const visiblePrices = isExpanded
     ? filteredPrices
     : filteredPrices.slice(0, 5);
+
+  const handleRowClick = (slug: string) => {
+    router.push(`/market/product/${slug}`);
+  };
 
   return (
     <div className="bg-white rounded-[32px] shadow-sm border border-gray-50 overflow-hidden flex flex-col">
@@ -113,7 +128,6 @@ export default function MarketTable() {
         </div>
       </div>
 
-      {/* Table Section - ĐẦY ĐỦ CÁC TRƯỜNG */}
       <div
         className={`overflow-x-auto custom-scrollbar ${
           isExpanded ? "max-h-[600px] overflow-y-auto" : ""
@@ -137,7 +151,7 @@ export default function MarketTable() {
               visiblePrices.map((row) => (
                 <tr
                   key={row.id}
-                  onClick={() => router.push(`/market/product/${row.slug}`)}
+                  onClick={() => handleRowClick(row.slug)}
                   className="hover:bg-gray-50/60 transition-all group cursor-pointer"
                 >
                   <td className="px-6 py-4 font-bold flex items-center gap-3">
