@@ -376,7 +376,7 @@ Last Updated: ${
             <div className="flex items-center justify-between mb-4">
               <div>
                 <img
-                  src="/logo.png"
+                  src="/assets/images/logo.png"
                   alt="Z-Energy Logo"
                   className="h-12 mb-2 print:h-10"
                   onError={(e) => {
