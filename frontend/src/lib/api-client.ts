@@ -1,5 +1,6 @@
 // --- FILE: src/lib/api-client.ts ---
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '';
+const API_BASE_URL = (process.env.NEXT_PUBLIC_API_URL || '').replace(/\/+$/, '');
+
 
 export interface ApiResponse<T = any> {
   data?: T

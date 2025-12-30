@@ -12,28 +12,21 @@ export const registerSchema = z
       .refine((val) => val.toLowerCase().endsWith('@gmail.com'), {
         message: 'Chỉ chấp nhận địa chỉ email Gmail (@gmail.com)',
       }),
-    username: z
-      .string()
-      .min(1, 'Tên người dùng là bắt buộc')
-      .min(3, 'Tên người dùng phải có ít nhất 3 ký tự'),
-      
+
     full_name: z.string().min(1, 'Họ và tên là bắt buộc'),
-    phone_number: z.string().min(1, 'Số điện thoại là bắt buộc'),
-    address: z.string().min(1, 'Địa chỉ là bắt buộc'),
 
     password: z
       .string()
       .min(8, 'Mật khẩu phải có ít nhất 8 ký tự')
-      .regex(
-        passwordRegex,
-        'Mật khẩu phải gồm chữ hoa, chữ thường, số và ký tự đặc biệt'
-      ),
+      .regex(passwordRegex, 'Mật khẩu phải gồm chữ hoa, chữ thường, số và ký tự đặc biệt'),
+
     confirmPassword: z.string().min(1, 'Vui lòng xác nhận mật khẩu'),
   })
   .refine((data) => data.password === data.confirmPassword, {
     message: 'Mật khẩu xác nhận không khớp',
     path: ['confirmPassword'],
   })
+
 
 export const loginSchema = z.object({
   email: z

@@ -1,7 +1,7 @@
 export interface RegisterPayload {
   email: string
-  username: string
   password: string
+  full_name: string
 }
 
 export interface LoginPayload {
@@ -13,5 +13,3 @@ export interface AuthResponse {
   access_token: string
   token_type?: string
 }
-
-

@@ -5,12 +5,12 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
 
     // Extract and validate payload
-    const { email, username, password } = body
+    const { email, full_name, password } = body
 
     // Basic validation
-    if (!email || !username || !password) {
+    if (!email || !full_name || !password) {
       return NextResponse.json(
-        { message: 'Email, username, and password are required' },
+        { message: 'Email, full_name, and password are required' },
         { status: 400 }
       )
     }
@@ -23,14 +23,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // TODO: Here you would typically:
-    // 1. Hash the password
-    // 2. Save user to database
-    // 3. Send verification email
-    // 4. Return success response
-
-    // For now, simulate successful registration
-    console.log('Registration request received:', { email, username })
+    console.log('Registration request received:', { email, full_name })
 
     return NextResponse.json(
       {
@@ -38,16 +31,13 @@ export async function POST(request: NextRequest) {
         message: 'Đăng ký thành công',
         user: {
           email,
-          username,
+          full_name,
         },
       },
       { status: 201 }
     )
   } catch (error) {
     console.error('Register API error:', error)
-    return NextResponse.json(
-      { message: 'Lỗi server nội bộ' },
-      { status: 500 }
-    )
+    return NextResponse.json({ message: 'Lỗi server nội bộ' }, { status: 500 })
   }
 }
