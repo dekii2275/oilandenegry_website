@@ -4,6 +4,8 @@
 import React from "react";
 import { Search } from "lucide-react";
 import Link from "next/link";
+import { useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 
 // Components
 import Header from "@/components/layout/Header";

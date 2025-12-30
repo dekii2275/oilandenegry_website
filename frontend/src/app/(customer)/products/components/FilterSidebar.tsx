@@ -1,12 +1,13 @@
-// frontend/src/app/(customer)/products/components/FilterSidebar.tsx
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import CircleCheckbox from "@/components/ui/CircleCheckbox";
 
 interface Category {
   id: number;
   name: string;
+  slug?: string;
 }
 
 interface Supplier {
@@ -38,6 +39,24 @@ const FilterSidebar: React.FC<FilterSidebarProps> = ({
   onClearFilters,
 }) => {
   const [showPromotionDetail, setShowPromotionDetail] = useState(false);
+  const searchParams = useSearchParams();
+  const categoryParam = searchParams.get("category");
+  const filterParam = searchParams.get("filter");
+
+  useEffect(() => {
+    if (filterParam && categories.length > 0) {
+      const category = categories.find(
+        (cat) =>
+          cat.name === filterParam ||
+          cat.name.toLowerCase().includes(filterParam.toLowerCase())
+      );
+
+      if (category && !filterState.selectedCategories.includes(category.name)) {
+        console.log(`Tự động chọn category từ URL: ${category.name}`);
+        onFilterChange({ selectedCategories: [category.name] });
+      }
+    }
+  }, [filterParam, categories, onFilterChange]);
 
   const handleCategorySelect = (categoryName: string) => {
     const newCategories = filterState.selectedCategories.includes(categoryName)
@@ -94,6 +113,15 @@ const FilterSidebar: React.FC<FilterSidebarProps> = ({
         {filterState.selectedCategories.length > 0 && (
           <div className="mt-3 text-sm text-green-600">
             Đã chọn: {filterState.selectedCategories.length} danh mục
+          </div>
+        )}
+
+        {/* Hiển thị thông báo nếu đang filter từ CategoriesSection */}
+        {filterParam && (
+          <div className="mt-3 p-2 bg-green-50 rounded-lg border border-green-200">
+            <p className="text-xs text-green-700">
+              Đang xem: <span className="font-semibold">{filterParam}</span>
+            </p>
           </div>
         )}
       </div>

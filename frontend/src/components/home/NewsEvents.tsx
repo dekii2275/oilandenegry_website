@@ -28,7 +28,7 @@ const fallbackNews: NewsItem[] = [
     category: 'THỊ TRƯỜNG NĂNG LƯỢNG',
     excerpt:
       'Phân tích chi tiết về biến động nguồn cung và tác động địa chính trị đến giá dầu toàn cầu trong những tháng cuối năm.',
-    image: '/assets/images/news-1.png',
+    image: '/assets/images/1.png',
     link: '#',
   },
   {
@@ -37,7 +37,7 @@ const fallbackNews: NewsItem[] = [
     category: 'CÔNG NGHỆ',
     excerpt:
       'Công nghệ PERC mới giúp tăng hiệu suất chuyển đổi năng lượng lên tới 25%, giảm chi phí đầu tư cho doanh nghiệp.',
-    image: '/assets/images/news-2.png',
+    image: '/assets/images/2.png',
     link: '#',
   },
   {
@@ -46,7 +46,7 @@ const fallbackNews: NewsItem[] = [
     category: 'SỰ KIỆN',
     excerpt:
       'Tham gia cùng các chuyên gia hàng đầu để thảo luận về lộ trình chuyển đổi xanh và cơ hội đầu tư bền vững.',
-    image: '/assets/images/news-3.png',
+    image: '/assets/images/3.png',
     link: '#',
   },
 ]
@@ -75,7 +75,7 @@ export default function NewsEvents({ newsData }: NewsEventsProps) {
           </h2>
 
           <Link
-            href="/products"
+            href="/news"
             className="text-emerald-600 hover:text-emerald-700 font-semibold text-sm"
           >
             Xem tất cả tin tức

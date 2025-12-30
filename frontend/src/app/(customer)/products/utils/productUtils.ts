@@ -9,6 +9,8 @@ export interface UIProduct extends Product {
   status?: "CÓ SẴN" | "ĐẶT TRƯỚC" | "BÁN SỈ" | "HOT" | "MỚI";
   brand?: string;
   oldPrice?: number;
+  projectDuration?: string; // 👈 Cho dự án
+  projectScale?: string;
 }
 
 /**
@@ -53,7 +55,18 @@ export const mockCategories = [
   { id: 4, name: "Dầu nhớt công nghiệp", slug: "dau-nhot-cong-nghiep" },
   { id: 5, name: "Vận tải & Logistics", slug: "van-tai-logistics" },
   { id: 6, name: "Năng lượng tái tạo", slug: "nang-luong-tai-tao" },
+  { id: 7, name: "Dự án", slug: "du-an" },
 ];
+
+export const categoryMapping: Record<string, string> = {
+  "Dầu thô": "Dầu thô & Nhiên liệu",
+  "Năng lượng tái tạo": "Năng lượng tái tạo",
+  "Khí tự nhiên": "Dầu thô & Nhiên liệu",
+  "Dầu nhờn": "Dầu nhớt công nghiệp",
+  "Vận tải": "Vận tải & Logistics",
+  "Điện mặt trời": "Điện mặt trời",
+  "Dự án": "Dự án",
+};
 
 export const mockSuppliers = [
   { id: 1, name: "GreenTech Solutions" },
@@ -315,6 +328,42 @@ export const mockProducts: Product[] = [
     image: "/api/placeholder/400/300",
     store: { name: "Energy Plus", id: 5 },
   },
+  {
+    id: 25,
+    name: "Dự án nhà máy điện mặt trời 10MW",
+    description: "Xây dựng và vận hành nhà máy điện mặt trời công suất 10MW",
+    category: "Dự án",
+    price: 15000000,
+    unit: "dự án",
+    image: "/api/placeholder/400/300",
+    store: { name: "SolarWorld", id: 4 },
+    projectDuration: "12-18 tháng",
+    projectScale: "Lớn",
+  } as Product,
+  {
+    id: 26,
+    name: "Hệ thống lưu trữ năng lượng công nghiệp",
+    description: "Triển khai hệ thống lưu trữ năng lượng cho khu công nghiệp",
+    category: "Dự án",
+    price: 5000000,
+    unit: "dự án",
+    image: "/api/placeholder/400/300",
+    store: { name: "Energy Plus", id: 5 },
+    projectDuration: "6-9 tháng",
+    projectScale: "Trung bình",
+  } as Product,
+  {
+    id: 27,
+    name: "Hệ thống logistics nhiên liệu",
+    description: "Triển khai hệ thống vận chuyển và lưu trữ nhiên liệu",
+    category: "Dự án",
+    price: 8000000,
+    unit: "dự án",
+    image: "/api/placeholder/400/300",
+    store: { name: "Global Petroleum", id: 2 },
+    projectDuration: "8-12 tháng",
+    projectScale: "Lớn",
+  } as Product,
 ];
 
 export const sortOptions = [
