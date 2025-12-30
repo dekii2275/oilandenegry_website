@@ -181,82 +181,119 @@ export default function NewProductPage() {
         </div>
 
         {/* ================= RIGHT ================= */}
-        <div className="space-y-6">
-          {/* ===== CATEGORY ===== */}
-          <div className="bg-white rounded-xl p-5">
-            <h2 className="font-semibold mb-4">Phân loại</h2>
+<div className="space-y-6">
+  {/* ===== CATEGORY ===== */}
+  <div className="bg-white rounded-xl p-5">
+    <h2 className="font-semibold mb-4">Phân loại</h2>
 
-            <select
-              value={form.categoryId}
-              onChange={(e) =>
-                setForm((p) => ({ ...p, categoryId: e.target.value }))
-              }
-              className="w-full border rounded-lg px-3 py-2 text-sm mb-3"
-              required
-            >
-              <option value="">-- Chọn danh mục --</option>
+    {/* CATEGORY */}
+    <label className="text-sm font-medium">
+      Chọn danh mục <span className="text-red-500">*</span>
+    </label>
+    <select
+      value={form.categoryId}
+      onChange={(e) =>
+        setForm((p) => ({ ...p, categoryId: e.target.value }))
+      }
+      className="w-full mt-1 mb-3 border rounded-lg px-3 py-2 text-sm bg-[#F3FFF7]"
+      required
+    >
+      <option value="">- Chọn danh mục -</option>
 
-              {/* TODO:
-                  - GET /api/categories
-                  - Map danh mục từ backend
-              */}
-            </select>
+      {/* TODO BACKEND:
+          GET /api/categories
+          {categories.map(c => (
+            <option key={c.id} value={c.id}>{c.name}</option>
+          ))}
+      */}
+    </select>
 
-            <input
-              name="brand"
-              value={form.brand}
-              onChange={handleChange}
-              placeholder="Thương hiệu"
-              className="w-full border rounded-lg px-3 py-2 text-sm"
-            />
-          </div>
+    {/* BRAND */}
+    <label className="text-sm font-medium">Thương hiệu</label>
+    <input
+      name="brand"
+      value={form.brand}
+      onChange={handleChange}
+      placeholder="Nhập tên thương hiệu"
+      className="w-full mt-1 border rounded-lg px-3 py-2 text-sm bg-[#F3FFF7]"
+    />
+  </div>
 
-          {/* ===== PRICE ===== */}
-          <div className="bg-white rounded-xl p-5">
-            <h2 className="font-semibold mb-4">Giá bán & Đơn vị</h2>
+  {/* ===== PRICE ===== */}
+  <div className="bg-white rounded-xl p-5">
+    <h2 className="font-semibold mb-4">Giá bán & Đơn vị</h2>
 
-            <input
-              name="price"
-              type="number"
-              value={form.price}
-              onChange={handleChange}
-              placeholder="Giá bán (VND)"
-              className="w-full border rounded-lg px-3 py-2 text-sm mb-3"
-              required
-            />
+    {/* PRICE */}
+    <label className="text-sm font-medium">
+      Giá bán (VND) <span className="text-red-500">*</span>
+    </label>
+    <input
+      name="price"
+      type="number"
+      value={form.price}
+      onChange={handleChange}
+      className="w-full mt-1 mb-3 border rounded-lg px-3 py-2 text-sm bg-[#F3FFF7]"
+      required
+    />
 
-            <input
-              name="salePrice"
-              type="number"
-              value={form.salePrice}
-              onChange={handleChange}
-              placeholder="Giá khuyến mãi"
-              className="w-full border rounded-lg px-3 py-2 text-sm mb-3"
-            />
+    {/* SALE PRICE */}
+    <label className="text-sm font-medium">Giá khuyến mãi</label>
+    <input
+      name="salePrice"
+      type="number"
+      value={form.salePrice}
+      onChange={handleChange}
+      className="w-full mt-1 mb-3 border rounded-lg px-3 py-2 text-sm bg-[#F3FFF7]"
+    />
 
-            <input
-              name="unit"
-              value={form.unit}
-              onChange={handleChange}
-              placeholder="Đơn vị (Cái, Bộ, Kg...)"
-              className="w-full border rounded-lg px-3 py-2 text-sm"
-            />
-          </div>
+    {/* UNIT */}
+    <label className="text-sm font-medium">
+      Đơn vị tính <span className="text-red-500">*</span>
+    </label>
+    <input
+      name="unit"
+      value={form.unit}
+      onChange={handleChange}
+      placeholder="Ví dụ: Cái, Lít, Kg, Bộ"
+      className="w-full mt-1 border rounded-lg px-3 py-2 text-sm bg-[#F3FFF7]"
+      required
+    />
+  </div>
 
-          {/* ===== STOCK ===== */}
-          <div className="bg-white rounded-xl p-5">
-            <h2 className="font-semibold mb-4">Kho hàng</h2>
+  {/* ===== STOCK ===== */}
+  <div className="bg-white rounded-xl p-5">
+    <h2 className="font-semibold mb-4">Kho hàng</h2>
 
-            <input
-              name="stock"
-              type="number"
-              value={form.stock}
-              onChange={handleChange}
-              placeholder="Số lượng tồn kho"
-              className="w-full border rounded-lg px-3 py-2 text-sm"
-            />
-          </div>
-        </div>
+    {/* TOGGLE */}
+    <div className="flex items-center justify-between mb-3">
+      <span className="text-sm">Quản lý tồn kho</span>
+      <input
+        type="checkbox"
+        checked={form.stock > 0}
+        onChange={(e) =>
+          setForm((p) => ({
+            ...p,
+            stock: e.target.checked ? 1 : 0,
+          }))
+        }
+        className="accent-green-600"
+      />
+    </div>
+
+    {/* STOCK INPUT */}
+    {form.stock > 0 && (
+      <input
+        name="stock"
+        type="number"
+        value={form.stock}
+        onChange={handleChange}
+        placeholder="Số lượng trong kho"
+        className="w-full border rounded-lg px-3 py-2 text-sm bg-[#F3FFF7]"
+      />
+    )}
+  </div>
+</div>
+
       </div>
     </form>
   );
