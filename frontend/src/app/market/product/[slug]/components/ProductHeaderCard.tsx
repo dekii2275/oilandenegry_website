@@ -1,7 +1,7 @@
 // frontend/src/app/market/product/[slug]/components/ProductHeaderCard.tsx
 
 "use client";
-
+import { apiClient } from "@/lib/api-client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -145,74 +145,32 @@ export default function ProductHeaderCard({ product }: ProductHeaderCardProps) {
   };
 
   // Xử lý click Thêm Giỏ
-  const handleAddToCart = async () => {
-    if (authLoading) return;
-    if (!checkAuthAndRedirect("add-to-cart")) return;
+const handleAddToCart = async () => {
+  if (!product || !selectedVariant) return;
 
-    setIsLoading(true);
-    try {
-      console.log("Thêm vào giỏ hàng:", product);
+  // Nếu chưa đăng nhập -> giữ nguyên luồng cũ
+  if (!user) {
+    const pending = {
+      action: "addToCart",
+      productId: product.product_id,
+      variantId: selectedVariant.id,
+      quantity,
+    };
+    sessionStorage.setItem("pendingAction", JSON.stringify(pending));
+    router.push("/login");
+    return;
+  }
 
-      // Tạo mock cart item
-      const cartItem = {
-        id: product.id,
-        name: product.name,
-        price:
-          typeof product.price === "number"
-            ? product.price
-            : parseFloat(product.price as string),
-        quantity: 1,
-        image: product.category?.includes("Dầu") ? "/oil.png" : "/energy.png",
-        slug: product.slug,
-        unit: product.unit,
-        category: product.category,
-      };
+  // ✅ Gọi API backend thật
+  await apiClient.post("/api/cart/items", {
+    variant_id: selectedVariant.id,
+    quantity,
+  });
 
-      // Lấy giỏ hàng hiện tại từ localStorage
-      const currentCart = JSON.parse(
-        localStorage.getItem("zenergy_cart") || "[]"
-      );
+  // Bắn event để Header / UI update số lượng
+  window.dispatchEvent(new Event("cart-updated"));
+};
 
-      // Kiểm tra sản phẩm đã có trong giỏ chưa
-      const existingItemIndex = currentCart.findIndex(
-        (item: any) => item.id === product.id
-      );
-      if (existingItemIndex > -1) {
-        currentCart[existingItemIndex].quantity += 1;
-        toast.success("Đã tăng số lượng sản phẩm trong giỏ hàng!", {
-          duration: 3000,
-          icon: "➕",
-        });
-      } else {
-        currentCart.push(cartItem);
-        toast.success("Đã thêm sản phẩm vào giỏ hàng!", {
-          duration: 3000,
-          icon: "✅",
-        });
-      }
-
-      // Lưu lại vào localStorage
-      localStorage.setItem("zenergy_cart", JSON.stringify(currentCart));
-
-      // Dispatch event để cập nhật badge giỏ hàng
-      const event = new CustomEvent("cart-updated", {
-        detail: {
-          count: currentCart.reduce(
-            (sum: number, item: any) => sum + item.quantity,
-            0
-          ),
-        },
-      });
-      window.dispatchEvent(event);
-    } catch (error: any) {
-      console.error("Lỗi khi thêm vào giỏ hàng:", error);
-      toast.error(error.message || "Có lỗi xảy ra!", {
-        duration: 4000,
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   // Xử lý yêu thích
   const handleToggleFavorite = async () => {
