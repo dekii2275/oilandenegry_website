@@ -6,7 +6,7 @@ import { Search, ChevronDown, ShoppingCart } from "lucide-react";
 import Link from "next/link";
 import CircleCheckbox from "@/components/ui/CircleCheckbox";
 import Footer from "@/components/home/Footer";
-import Header from "@/components/layout/Header";
+import Header from "@/components/home/Header";
 
 // Interface cho Category
 interface Category {
