@@ -2,11 +2,11 @@
 
 import Header from "@/components/home/Header";
 import Footer from "@/components/home/Footer";
-import MarketHeader from "./components/MarketHeader";
-import MarketStats from "./components/MarketStats";
+import MarketHeader from "./components/MarketHeader"; // Giữ cái này (4 ô dữ liệu thật)
+// import MarketStats from "./components/MarketStats"; <--- XÓA DÒNG NÀY
 import MarketChart from "./components/MarketChart";
 import MarketAnalysis from "./components/MarketAnalysis";
-import MarketNews from "./components/MarketNews";
+// import MarketNews from "./components/MarketNews";
 import MarketTable from "./components/MarketTable";
 
 export default function MarketPage() {
@@ -15,8 +15,10 @@ export default function MarketPage() {
       <Header />
 
       <main className="flex-grow max-w-7xl mx-auto w-full px-4 py-8">
+        {/* Chỉ giữ lại MarketHeader - nơi chứa 4 ô dữ liệu thật */}
         <MarketHeader />
-        <MarketStats />
+        
+        {/* <MarketStats /> <--- XÓA DÒNG NÀY ĐI */}
 
         {/* Middle Section: Chart & Analysis & News */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-8">
@@ -28,7 +30,6 @@ export default function MarketPage() {
           {/* Analysis & News Column */}
           <div className="lg:col-span-4 space-y-6">
             <MarketAnalysis />
-            <MarketNews />
           </div>
         </div>
 

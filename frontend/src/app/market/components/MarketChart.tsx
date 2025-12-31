@@ -9,234 +9,196 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
+  ReferenceLine,
 } from "recharts";
-import { chartTimeRanges, marketStats } from "../utils/marketData"; // Lấy marketStats đã filter từ marketData
 
-// Danh mục hiển thị khớp với logic màu sắc trong marketData
+// 1. Cấu hình Data
 const productCategories = [
-  { id: "Dầu", name: "Dầu thô & Nhiên liệu", color: "#71C291" },
-  { id: "Điện", name: "Điện mặt trời", color: "#F59E0B" },
-  { id: "Năng lượng", name: "Năng lượng tái tạo", color: "#3B82F6" },
-  { id: "Máy phát", name: "Máy phát điện", color: "#8B5CF6" },
+  { id: "WTI", symbol: "CL=F", name: "Dầu WTI", color: "#10B981" },
+  { id: "BRENT", symbol: "BZ=F", name: "Dầu Brent", color: "#3B82F6" },
+  { id: "GAS", symbol: "NG=F", name: "Khí tự nhiên", color: "#EF4444" },
+  { id: "SOLAR", symbol: "TAN", name: "Điện mặt trời", color: "#F59E0B" },
 ];
 
-const generateChartDataByProduct = (range: string, categoryId: string) => {
-  // Tìm giá thực tế của sản phẩm thuộc category này từ marketStats
-  const targetProduct = marketStats.find((s) =>
-    s.category.includes(categoryId)
-  );
+const timeRanges = [
+  { label: "1T", value: "1wk" },
+  { label: "1Th", value: "1mo" },
+  { label: "3Th", value: "3mo" },
+  { label: "1N", value: "1y" },
+];
 
-  // Lấy giá trị số từ chuỗi price (ví dụ: "$82.40" -> 82.40)
-  const realPrice = targetProduct
-    ? parseFloat(targetProduct.price.replace(/[$,]/g, ""))
-    : 100;
+export default function MarketChart() {
+  const [selectedRange, setSelectedRange] = useState(timeRanges[0]);
+  const [selectedCategory, setSelectedCategory] = useState(productCategories[0]);
+  const [chartData, setChartData] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [hoveredPrice, setHoveredPrice] = useState<number | null>(null);
 
-  const generatePoints = (labels: string[], basePrice: number) => {
-    return labels.map((name, i) => {
-      const randomFlux = (Math.random() - 0.5) * (basePrice * 0.05); // Biến động 5%
-      const gia = basePrice + randomFlux + i * (basePrice * 0.005); // Xu hướng tăng nhẹ
-      return {
-        name,
-        gia: Number(gia.toFixed(2)),
-        duBao: Number((gia + Math.random() * 2).toFixed(2)),
-      };
+  const formatTooltipDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleString('vi-VN', {
+      day: 'numeric',
+      month: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
     });
   };
 
-  switch (range) {
-    case "1 Tuần":
-      return generatePoints(
-        ["Th 2", "Th 3", "Th 4", "Th 5", "Th 6", "Th 7", "CN"],
-        realPrice
-      );
-    case "1 Tháng":
-      return generatePoints(
-        ["Tuần 1", "Tuần 2", "Tuần 3", "Tuần 4"],
-        realPrice
-      );
-    case "1 Năm":
-      return generatePoints(
-        [
-          "T1",
-          "T2",
-          "T3",
-          "T4",
-          "T5",
-          "T6",
-          "T7",
-          "T8",
-          "T9",
-          "T10",
-          "T11",
-          "T12",
-        ],
-        realPrice
-      );
-    case "3 Tháng":
-      return generatePoints(["Tháng 1", "Tháng 2", "Tháng 3"], realPrice);
-    default:
-      return [];
-  }
-};
-
-export default function MarketChart() {
-  const [selectedRange, setSelectedRange] = useState("1 Tuần");
-  const [selectedCategory, setSelectedCategory] = useState(
-    productCategories[0]
-  );
-  const [data, setData] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
-
   useEffect(() => {
-    setLoading(true);
-    const timer = setTimeout(() => {
-      const chartData = generateChartDataByProduct(
-        selectedRange,
-        selectedCategory.id
-      );
-      setData(chartData);
-      setLoading(false);
-    }, 400);
-    return () => clearTimeout(timer);
-  }, [selectedRange, selectedCategory]);
+    const fetchHistory = async () => {
+      setLoading(true);
+      setError(null);
+      setHoveredPrice(null);
+      
+      try {
+        const res = await fetch(
+          `/node-api/market-proxy?symbol=${selectedCategory.symbol}&range=${selectedRange.value}`
+        );
+
+        if (!res.ok) throw new Error("Lỗi kết nối");
+        const rawData = await res.json();
+
+        if (!Array.isArray(rawData) || rawData.length === 0) {
+          throw new Error("Không có dữ liệu");
+        }
+
+        const formattedData = rawData.map((item: any) => ({
+          rawDate: item.date,
+          price: item.price ? Number(item.price.toFixed(2)) : 0,
+        }));
+
+        setChartData(formattedData);
+      } catch (err: any) {
+        setChartData([]);
+        setError("Chưa có dữ liệu");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchHistory();
+  }, [selectedCategory, selectedRange]);
+
+  const handleMouseMove = (state: any) => {
+    if (state && state.activePayload) {
+      setHoveredPrice(state.activePayload[0].value);
+    }
+  };
 
   return (
-    <div className="bg-white p-8 rounded-[40px] shadow-[0_15px_50px_rgba(0,0,0,0.03)] border border-gray-50">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
-        <div>
-          <h2 className="text-lg font-bold text-gray-800">
-            Biểu đồ Xu hướng Giá
-          </h2>
-          <div className="flex gap-4 mt-4">
-            {productCategories.map((cat) => (
-              <button
-                key={cat.id}
-                onClick={() => setSelectedCategory(cat)}
-                className={`text-[11px] font-bold transition-all flex items-center gap-1.5 ${
-                  selectedCategory.id === cat.id
-                    ? "text-[#71C291]"
-                    : "text-gray-300 hover:text-gray-400"
-                }`}
-              >
-                <div
-                  className={`w-1.5 h-1.5 rounded-full ${
-                    selectedCategory.id === cat.id
-                      ? ""
-                      : "bg-transparent border border-gray-200"
-                  }`}
-                  style={{
-                    backgroundColor:
-                      selectedCategory.id === cat.id ? cat.color : "",
-                  }}
-                ></div>
-                {cat.name}
-              </button>
-            ))}
-          </div>
+    // --- THAY ĐỔI QUAN TRỌNG: h-[320px] để ép thành hình chữ nhật dài ---
+    <div className="bg-white p-5 rounded-[20px] shadow-sm border border-gray-100 w-full h-[320px] flex flex-col">
+      
+      {/* HEADER: Dồn tất cả lên 1 dòng để tiết kiệm chiều cao */}
+      <div className="flex justify-between items-center mb-2">
+        {/* Dropdown chọn loại */}
+        <div className="flex items-center gap-3">
+             <div className="relative group">
+                <select 
+                    value={selectedCategory.id}
+                    onChange={(e) => setSelectedCategory(productCategories.find(c => c.id === e.target.value) || productCategories[0])}
+                    className="appearance-none pl-3 pr-8 py-1.5 rounded-lg border border-gray-200 bg-gray-50 text-sm font-bold text-gray-700 cursor-pointer focus:outline-none hover:bg-white hover:border-green-500 transition-all"
+                >
+                    {productCategories.map(cat => (
+                        <option key={cat.id} value={cat.id}>{cat.name}</option>
+                    ))}
+                </select>
+                <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                    <svg className="w-3 h-3 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+                </div>
+            </div>
+            
+            {/* Chỉ số hiện tại (Nếu có hover thì hiện giá hover, ko thì hiện tên) */}
+            <div className="text-sm font-bold" style={{ color: selectedCategory.color }}>
+                {hoveredPrice ? `$${hoveredPrice.toFixed(2)}` : ""}
+            </div>
         </div>
 
-        <div className="flex bg-gray-50 p-1.5 rounded-2xl gap-1">
-          {chartTimeRanges.map((range) => (
+        {/* Nút thời gian nhỏ gọn */}
+        <div className="flex bg-gray-50 p-1 rounded-lg gap-1">
+          {timeRanges.map((range) => (
             <button
-              key={range}
+              key={range.value}
               onClick={() => setSelectedRange(range)}
-              className={`text-[10px] px-4 py-2 rounded-xl font-bold transition-all ${
-                selectedRange === range
-                  ? "bg-white shadow-sm text-[#71C291]"
-                  : "text-gray-400 hover:text-gray-500"
+              disabled={loading}
+              className={`text-[10px] px-3 py-1 rounded-md font-bold transition-all ${
+                selectedRange.value === range.value
+                  ? "bg-white shadow-sm text-gray-800"
+                  : "text-gray-400 hover:text-gray-600"
               }`}
             >
-              {range}
+              {range.label}
             </button>
           ))}
         </div>
       </div>
 
-      <div className="h-[320px] w-full relative">
-        {loading && (
-          <div className="absolute inset-0 flex items-center justify-center bg-white/50 z-10 rounded-3xl">
-            <div className="w-6 h-6 border-2 border-[#71C291] border-t-transparent rounded-full animate-spin"></div>
-          </div>
+      {/* CHART AREA: Chiếm toàn bộ phần còn lại */}
+      <div className="flex-grow w-full relative min-h-0" onMouseLeave={() => setHoveredPrice(null)}>
+        
+        {/* Loading / Error Layer */}
+        {(loading || error) && (
+            <div className="absolute inset-0 flex items-center justify-center bg-white/80 z-10 backdrop-blur-[1px]">
+                {loading ? <div className="w-5 h-5 border-2 border-green-500 border-t-transparent rounded-full animate-spin"/> : <span className="text-xs text-red-400">{error}</span>}
+            </div>
         )}
 
-        <ResponsiveContainer width="100%" height="100%">
-          <AreaChart
-            data={data}
-            margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
-          >
-            <defs>
-              <linearGradient id="colorMain" x1="0" y1="0" x2="0" y2="1">
-                <stop
-                  offset="5%"
-                  stopColor={selectedCategory.color}
-                  stopOpacity={0.2}
-                />
-                <stop
-                  offset="95%"
-                  stopColor={selectedCategory.color}
-                  stopOpacity={0}
-                />
-              </linearGradient>
-            </defs>
-            <CartesianGrid
-              strokeDasharray="3 3"
-              vertical={false}
-              stroke="#F1F5F9"
-            />
-            <XAxis
-              dataKey="name"
-              axisLine={false}
-              tickLine={false}
-              tick={{ fontSize: 10, fill: "#CBD5E1", fontWeight: 600 }}
-              dy={15}
-              interval={0}
-            />
-            <YAxis
-              axisLine={false}
-              tickLine={false}
-              tick={{ fontSize: 10, fill: "#CBD5E1", fontWeight: 600 }}
-              tickFormatter={(val) => `$${val}`}
-            />
-            <Tooltip
-              contentStyle={{
-                borderRadius: "12px",
-                border: "none",
-                boxShadow: "0 10px 30px rgba(0,0,0,0.05)",
-              }}
-            />
-            <Area
-              type="monotone"
-              dataKey="duBao"
-              stroke="#E2E8F0"
-              strokeWidth={2}
-              strokeDasharray="5 5"
-              fill="transparent"
-            />
-            <Area
-              type="monotone"
-              dataKey="gia"
-              stroke={selectedCategory.color}
-              strokeWidth={3}
-              fillOpacity={1}
-              fill="url(#colorMain)"
-              animationDuration={1000}
-            />
-          </AreaChart>
-        </ResponsiveContainer>
-      </div>
+        {chartData.length > 0 && (
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart 
+              data={chartData} 
+              margin={{ top: 10, right: 0, left: -20, bottom: 0 }}
+              onMouseMove={handleMouseMove}
+            >
+              <defs>
+                <linearGradient id="colorGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor={selectedCategory.color} stopOpacity={0.1} />
+                  <stop offset="95%" stopColor={selectedCategory.color} stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              
+              <CartesianGrid strokeDasharray="3 3" vertical={true} horizontal={false} stroke="#f0f0f0" />
+              
+              <XAxis dataKey="rawDate" hide={true} />
+              
+              {/* Trục Y nằm bên phải (orientation="right") */}
+              <YAxis 
+                orientation="right" 
+                tick={{ fontSize: 10, fill: "#999" }} 
+                tickFormatter={(val) => val.toFixed(1)}
+                axisLine={false}
+                tickLine={false}
+                domain={['auto', 'auto']}
+                width={35}
+              />
+              
+              <Tooltip
+                contentStyle={{ background: '#fff', border: 'none', borderRadius: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                labelStyle={{ fontSize: '10px', color: '#888', marginBottom: '2px' }}
+                itemStyle={{ fontSize: '12px', fontWeight: 'bold', color: '#333', padding: 0 }}
+                labelFormatter={formatTooltipDate}
+                formatter={(value: any) => [`$${value}`, 'Price']}
+                cursor={{ stroke: '#ccc', strokeWidth: 1, strokeDasharray: '4 4' }}
+              />
 
-      <div className="flex justify-center gap-8 mt-10">
-        <div className="flex items-center gap-2 text-[10px] font-bold text-gray-500">
-          <div
-            className="w-3 h-[2px] rounded-full"
-            style={{ backgroundColor: selectedCategory.color }}
-          ></div>
-          Giá thực tế từ kho sản phẩm
-        </div>
-        <div className="flex items-center gap-2 text-[10px] font-bold text-gray-300">
-          <div className="w-3 h-[2px] border-t-2 border-dashed border-gray-300"></div>
-          Dự báo (AI)
-        </div>
+              {/* Đường kẻ ngang tham chiếu khi hover */}
+              {hoveredPrice && (
+                 <ReferenceLine y={hoveredPrice} stroke={selectedCategory.color} strokeDasharray="3 3" />
+              )}
+              
+              <Area
+                type="monotone"
+                dataKey="price"
+                stroke={selectedCategory.color}
+                strokeWidth={2}
+                fill="url(#colorGradient)"
+                animationDuration={500}
+                activeDot={{ r: 4, strokeWidth: 0, fill: selectedCategory.color }}
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+        )}
       </div>
     </div>
   );

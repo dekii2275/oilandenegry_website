@@ -1,129 +1,171 @@
-'use client'
+"use client";
 
-import { useForm } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import { loginSchema } from '@/lib/validators/auth'
-import { loginUser } from '@/services/auth.service' // Import hàm login
-import AuthInput from './AuthInput'
-import AuthButton from './AuthButton'
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
-import { ROUTES } from '@/constants/routes'
-import Link from 'next/link'
-// import { getSafeErrorMessage } from '@/utils/error-handler' // Nếu bạn có file này thì uncomment
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import Cookies from "js-cookie";
+import { toast } from "react-hot-toast";
+import { Loader2, Mail, Lock, Eye, EyeOff } from "lucide-react";
+import { jwtDecode } from "jwt-decode";
 
-interface LoginFormData {
-  email: string
-  password: string
+// Định nghĩa cấu trúc Token
+interface DecodedToken {
+  sub: string;
+  id: number;
+  role: "ADMIN" | "SELLER" | "CUSTOMER";
+  exp: number;
 }
 
 export default function LoginForm() {
-  const [isLoading, setIsLoading] = useState(false)
-  const [apiError, setApiError] = useState<string | null>(null)
-  const [rememberMe, setRememberMe] = useState(false)
-  const router = useRouter()
+  const router = useRouter();
   
-  const {
-    register,
-    handleSubmit,
-    formState: { errors },
-  } = useForm<LoginFormData>({
-    resolver: zodResolver(loginSchema),
-  })
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  // --- PHẦN ĐÃ SỬA ---
-  const onSubmit = async (data: LoginFormData) => {
-    setIsLoading(true)
-    setApiError(null)
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
 
     try {
-      // 1. Gọi API đăng nhập (Bước quan trọng bị thiếu)
-      await loginUser(data.email, data.password);
+      // 1. Gửi dữ liệu (Trim khoảng trắng)
+      const payload = {
+        email: email.trim(),
+        password: password.trim()
+      };
 
-      // 2. Nếu thành công -> Chuyển hướng về trang chủ hoặc Dashboard
-      // Đảm bảo ROUTES.HOME hoặc ROUTES.DASHBOARD tồn tại trong file constants
-      router.push(ROUTES.HOME || '/'); 
-      router.refresh(); // Refresh để cập nhật trạng thái Auth cho header
+      const res = await fetch("https://zenergy.cloud/api/auth/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.detail || "Email hoặc mật khẩu không chính xác");
+      }
+
+      // 2. Lấy Token
+      const token = data.access_token;
+
+      if (token) {
+        // 3. Giải mã token để lấy ROLE THẬT
+        const decoded: DecodedToken = jwtDecode(token);
+        const realRole = decoded.role;
+
+        console.log("User Role detected:", realRole);
+
+        // 4. Lưu Cookie
+        if (realRole === "ADMIN") {
+          Cookies.set("adminToken", token, { expires: 1 });
+        } else {
+          Cookies.set("accessToken", token, { expires: 7 });
+        }
+        Cookies.set("userRole", realRole, { expires: 7 });
+
+        toast.success(`Đăng nhập thành công!`);
+        localStorage.setItem("access_token", token);
+
+
+        // 5. Chuyển hướng theo Role
+        if (realRole === "ADMIN") {
+          router.push("/admin");
+        } else if (realRole === "SELLER") {
+          router.push("/seller");
+        } else {
+          router.push("/"); // Customer về trang chủ
+        }
+        
+        router.refresh();
+      } else {
+         throw new Error("Không nhận được token xác thực.");
+      }
 
     } catch (error: any) {
-      console.error('Login error:', error)
-      
-      // 3. Xử lý hiển thị lỗi (Dùng error.message vì đã xử lý ở service rồi)
-      const msg = error?.message || 'Đăng nhập thất bại. Vui lòng thử lại.';
-      setApiError(msg);
-
+      console.error("Login Error:", error);
+      toast.error(error.message || "Lỗi kết nối server");
     } finally {
-      setIsLoading(false)
+      setLoading(false);
     }
-  }
-  // -------------------
+  };
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-      {apiError && (
-        <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-lg text-sm">
-          {apiError}
-        </div>
-      )}
-
-      <AuthInput
-        {...register('email')}
-        type="text"
-        placeholder="Tên đăng nhập hoặc email"
-        error={errors.email?.message}
-        icon={
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-          </svg>
-        }
-      />
-
-      <AuthInput
-        {...register('password')}
-        type="password"
-        placeholder="Mật khẩu"
-        error={errors.password?.message}
-        showPasswordToggle
-        icon={
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-          </svg>
-        }
-      />
-
-      <div className="flex items-center justify-between text-sm mb-4">
-        <label className="flex items-center cursor-pointer">
+    <form onSubmit={handleLogin} className="space-y-6">
+      {/* Input Email */}
+      <div className="space-y-2">
+        <label className="text-sm font-medium text-gray-700 block">Email đăng nhập</label>
+        <div className="relative">
+          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
+            <Mail size={18} />
+          </div>
           <input
-            type="checkbox"
-            checked={rememberMe}
-            onChange={(e) => setRememberMe(e.target.checked)}
-            className="mr-2 w-4 h-4 text-green-400 border-gray-300 rounded focus:ring-green-400"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 focus:border-green-500 focus:ring-2 focus:ring-green-200 outline-none transition-all bg-white/50"
+            placeholder="name@example.com"
+            required
           />
-          <span className="text-gray-700">Lưu thông tin đăng nhập</span>
-        </label>
-        <Link 
-          href="#" 
-          className="text-gray-700 hover:text-green-500 transition-colors"
-        >
-          Quên mật khẩu
-        </Link>
+        </div>
       </div>
 
-      <div className="pt-2">
-        <AuthButton type="submit" isLoading={isLoading}>
-          Đăng nhập
-        </AuthButton>
+      {/* Input Password */}
+      <div className="space-y-2">
+        <label className="text-sm font-medium text-gray-700 block">Mật khẩu</label>
+        <div className="relative">
+          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
+            <Lock size={18} />
+          </div>
+          <input
+            type={showPassword ? "text" : "password"}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="w-full pl-10 pr-10 py-3 rounded-xl border border-gray-200 focus:border-green-500 focus:ring-2 focus:ring-green-200 outline-none transition-all bg-white/50"
+            placeholder="••••••••"
+            required
+          />
+          <button
+            type="button"
+            onClick={() => setShowPassword(!showPassword)}
+            className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-green-600 transition-colors"
+          >
+            {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+          </button>
+        </div>
       </div>
 
-      <div className="text-center text-sm text-gray-700 mt-4">
-        Chưa có tài khoản?{' '}
-        <Link 
-          href={ROUTES.REGISTER} 
-          className="text-green-600 hover:text-green-700 font-semibold underline transition-colors"
+      <div className="flex items-center justify-end text-xs text-gray-500">
+        <a href="#" className="hover:text-green-600 hover:underline">Quên mật khẩu?</a>
+      </div>
+
+      <button
+        type="submit"
+        disabled={loading}
+        className="w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-bold py-3.5 rounded-xl shadow-lg shadow-green-200 transform transition-all active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+      >
+        {loading ? (
+          <>
+            <Loader2 className="animate-spin" size={20} />
+            Đang xử lý...
+          </>
+        ) : (
+          "Đăng nhập hệ thống"
+        )}
+      </button>
+
+      <div className="text-center text-sm text-gray-600">
+        Chưa có tài khoản?{" "}
+        <button 
+          type="button" 
+          onClick={() => router.push('/register')} 
+          className="text-green-600 font-bold hover:underline"
         >
-          Đăng ký
-        </Link>
+          Đăng ký ngay
+        </button>
       </div>
     </form>
-  )
+  );
 }

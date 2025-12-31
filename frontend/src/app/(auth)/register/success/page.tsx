@@ -20,5 +20,5 @@ export default function RegisterSuccessPage() {
       {email && <p>{email}</p>}
       <p>Đang chuyển về trang chủ...</p>
     </div>
-  )
+  );
 }

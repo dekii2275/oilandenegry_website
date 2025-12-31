@@ -3,6 +3,7 @@
     "html2canvas": "^1.4.1",
     "jspdf": "^3.0.4",
     "react-hot-toast": "^2.6.0",
-    "recharts": "^3.6.0"
+    "recharts": "^3.6.0",
+    "yahoo-finance2": "^3.10.2"
   }
 }

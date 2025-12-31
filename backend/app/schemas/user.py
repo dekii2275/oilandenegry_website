@@ -1,5 +1,6 @@
 from pydantic import BaseModel, EmailStr
 from typing import Optional
+from datetime import datetime
 
 # Khuôn mẫu dữ liệu gửi lên khi Đăng ký
 class UserCreate(BaseModel):
@@ -15,15 +16,16 @@ class UserLogin(BaseModel):
 # Khuôn mẫu dữ liệu Server trả về (Giấu mật khẩu đi)
 class UserResponse(BaseModel):
     id: int
-    email: str
+    email: EmailStr
     full_name: Optional[str] = None
     role: str
-    is_verified: bool # Trả về trạng thái xác thực
-    is_approved: Optional[bool] = False
-    avatar_url: Optional[str] = None # <-- Thêm dòng này
+    is_active: bool            # <--- Thêm dòng này (để biết Active/Banned)
+    is_verified: bool          # <--- Thêm dòng này
+    created_at: Optional[datetime] = None  # <--- Thêm dòng này (để hiện ngày tạo)
+    avatar_url: Optional[str] = None
 
     class Config:
-        from_attributes = True
+        from_attributes = True # Quan trọng
 
 # Dùng cho API 1: Yêu cầu gửi mail
 class EmailSchema(BaseModel):

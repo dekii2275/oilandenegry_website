@@ -1,6 +1,6 @@
-import RegisterForm from '@/components/auth/RegisterForm'
-import Link from 'next/link'
-import { ROUTES } from '@/constants/routes'
+import RegisterForm from "@/components/auth/RegisterForm";
+import Link from "next/link";
+import { ROUTES } from "@/constants/routes";
 
 export default function RegisterPage() {
   return (
@@ -56,5 +56,5 @@ export default function RegisterPage() {
         </div>
       </div>
     </div>
-  )
+  );
 }
