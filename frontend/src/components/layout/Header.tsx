@@ -6,6 +6,7 @@ import { useState } from "react";
 import { useAuth } from "@/app/providers/AuthProvider";
 import ProfileDropdown from "./ProfileDropdown";
 import { usePathname } from "next/navigation";
+import CartBadge from "@/components/cart/CartBadge";
 
 export default function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
