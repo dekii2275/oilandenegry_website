@@ -1,4 +1,6 @@
 // src/app/api/market-proxy/route.ts
+export const dynamic = "force-dynamic";
+
 import { NextResponse } from 'next/server';
 import yahooFinance from 'yahoo-finance2';
 

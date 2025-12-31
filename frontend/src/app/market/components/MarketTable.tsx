@@ -15,6 +15,21 @@ const generateSlug = (name: string): string => {
     .replace(/[\u0300-\u036f]/g, "");
 };
 
+type MarketRow = {
+  id: any;
+  name: any;
+  color: string;
+  unit: any;
+  price: string;
+  changeValue: string;
+  changePercent: string;
+  high: string;
+  low: string;
+  slug?: string;
+  category?: string;
+};
+
+
 export default function MarketTable() {
   const router = useRouter();
   const [searchTerm, setSearchTerm] = useState("");
@@ -47,10 +62,11 @@ export default function MarketTable() {
     "Máy phát điện",
   ];
 
-  const processedPrices = detailedPrices.map((item) => ({
-    ...item,
-    slug: item.slug || generateSlug(item.name),
-  }));
+  const processedPrices: MarketRow[] = (detailedPrices as any[]).map((item) => ({
+  ...item,
+  slug: item.slug || generateSlug(item.name),
+}));
+
 
   const filteredPrices = processedPrices.filter((item) => {
     const matchesSearch = item.name
@@ -65,9 +81,9 @@ export default function MarketTable() {
     ? filteredPrices
     : filteredPrices.slice(0, 5);
 
-  const handleRowClick = (slug: string) => {
-    router.push(`/market/product/${slug}`);
-  };
+  const handleRowClick = (slug?: string) => {
+  router.push(`/market/product/${slug ?? ""}`);
+};
 
   return (
     <div className="bg-white rounded-[32px] shadow-sm border border-gray-50 overflow-hidden flex flex-col">

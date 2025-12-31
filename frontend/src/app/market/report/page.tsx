@@ -257,7 +257,7 @@ export default function MarketReportPage() {
     try {
       // Tạo ZIP file nếu nhiều báo cáo
       if (selectedReports.length > 1 && format !== "pdf") {
-        toast.info("Báo cáo nhiều file sẽ được tải riêng lẻ", {
+        toast("Báo cáo nhiều file sẽ được tải riêng lẻ", {
           id: toastId,
           duration: 2000,
         });

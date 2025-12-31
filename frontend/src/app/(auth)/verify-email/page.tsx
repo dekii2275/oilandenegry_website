@@ -1,17 +1,18 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { ROUTES } from "@/constants/routes";
 
-export default function VerifyEmailPage() {
-  const [status, setStatus] = useState<"loading" | "success" | "error">(
-    "loading"
-  );
+// 1. Tách logic chính ra Component con
+function VerifyEmailContent() {
+  const [status, setStatus] = useState<"loading" | "success" | "error">("loading");
   const [message, setMessage] = useState("Đang xác thực email...");
+  
   const searchParams = useSearchParams();
   const router = useRouter();
+  
   const token = searchParams.get("token");
   const email = searchParams.get("email");
 
@@ -37,9 +38,7 @@ export default function VerifyEmailPage() {
 
         if (response.ok) {
           setStatus("success");
-          setMessage(
-            data.message || "Email của bạn đã được xác thực thành công!"
-          );
+          setMessage(data.message || "Email của bạn đã được xác thực thành công!");
 
           // Chuyển hướng sau 5 giây
           setTimeout(() => {
@@ -49,10 +48,7 @@ export default function VerifyEmailPage() {
           }, 5000);
         } else {
           setStatus("error");
-          setMessage(
-            data.message ||
-              "Xác thực email thất bại. Liên kết có thể đã hết hạn."
-          );
+          setMessage(data.message || "Xác thực email thất bại. Liên kết có thể đã hết hạn.");
         }
       } catch (error) {
         console.error("Verification error:", error);
@@ -193,5 +189,21 @@ export default function VerifyEmailPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+// 2. Component chính bọc Suspense
+export default function VerifyEmailPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-green-200 border-t-green-600 rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-500">Đang tải...</p>
+        </div>
+      </div>
+    }>
+      <VerifyEmailContent />
+    </Suspense>
   );
 }

@@ -1,11 +1,13 @@
 // frontend/src/app/(customer)/products/page.tsx
 "use client";
 
-import React from "react";
+export const dynamic = "force-dynamic";
+
+import React, { Suspense } from "react"; // 1. Thêm Suspense
 import { Search } from "lucide-react";
 import Link from "next/link";
-import { useEffect } from "react";
-import { useSearchParams } from "next/navigation";
+// import { useEffect } from "react"; // (Có thể bỏ nếu không dùng trực tiếp ở đây)
+// import { useSearchParams } from "next/navigation"; // (Hook useProductsData đã dùng rồi nên ở đây không cần gọi lại cũng được)
 
 // Components
 import Header from "@/components/layout/Header";
@@ -18,7 +20,8 @@ import Pagination from "./components/Pagination";
 // Custom hook
 import { useProductsData } from "./hooks/useProductsData";
 
-export default function ProductsPage() {
+// 2. Đổi tên component chính thành ProductsContent và bỏ chữ export default
+function ProductsContent() {
   const {
     products,
     categories,
@@ -39,7 +42,6 @@ export default function ProductsPage() {
     handlePageChange,
     setIsSortOpen,
     addToCart,
-    handleSearch, // Nhận handleSearch từ hook
   } = useProductsData();
 
   const hasActiveFilters =
@@ -50,16 +52,11 @@ export default function ProductsPage() {
     filterState.searchQuery.trim() !== "" ||
     filterState.sortBy !== "default";
 
-  // if (loading) {
-  //   return (
-  //     <div className="min-h-screen flex items-center justify-center bg-[#F0FDF4]">
-  //       <div className="text-center">
-  //         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mx-auto mb-4"></div>
-  //         <p className="text-gray-600">Đang tải dữ liệu từ server...</p>
-  //       </div>
-  //     </div>
-  //   );
-  // }
+  const onSidebarFilterChange = (updates: any) => {
+    Object.entries(updates).forEach(([key, value]) => {
+      updateFilter(key, value);
+    });
+  };
 
   return (
     <div className="min-h-screen bg-[#F0FDF4]">
@@ -95,7 +92,7 @@ export default function ProductsPage() {
               placeholder="Tìm kiếm sản phẩm, danh mục..."
               className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-green-500 bg-white"
               value={filterState.searchQuery}
-              onChange={(e) => handleSearch(e.target.value)} // Sử dụng handleSearch
+              onChange={(e) => updateFilter("searchQuery", e.target.value)}
             />
           </div>
         </div>
@@ -114,8 +111,8 @@ export default function ProductsPage() {
           <FilterSidebar
             categories={categories}
             suppliers={suppliers}
-            filterState={filterState}
-            onFilterChange={updateFilter}
+            filterState={filterState as any}
+            onFilterChange={onSidebarFilterChange}
             onClearFilters={clearAllFilters}
           />
 
@@ -126,7 +123,7 @@ export default function ProductsPage() {
               sortLabel={sortLabel}
               isSortOpen={isSortOpen}
               sortOptions={sortOptions}
-              onSortToggle={() => setIsSortOpen(!isSortOpen)}
+              onSortToggle={setIsSortOpen}
               onSortSelect={handleSort}
               currentSort={filterState.sortBy}
               startItem={startItem}
@@ -138,7 +135,7 @@ export default function ProductsPage() {
 
             {/* Product Grid */}
             <ProductGrid
-              products={products}
+              products={products as any}
               onAddToCart={addToCart}
               onClearFilters={clearAllFilters}
             />
@@ -155,5 +152,23 @@ export default function ProductsPage() {
 
       <Footer />
     </div>
+  );
+}
+
+// 3. Tạo component chính export default bọc Suspense
+export default function ProductsPage() {
+  return (
+    <Suspense 
+      fallback={
+        <div className="min-h-screen flex items-center justify-center bg-[#F0FDF4]">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mx-auto mb-4"></div>
+            <p className="text-gray-600">Đang tải sản phẩm...</p>
+          </div>
+        </div>
+      }
+    >
+      <ProductsContent />
+    </Suspense>
   );
 }

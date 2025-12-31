@@ -1,7 +1,9 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/app/providers/AuthProvider";
-import { authService } from "@/services/auth.service"; // ✅ Import authService chuẩn
-import { apiClient } from "./api"; // Vẫn giữ để upload ảnh/update nếu cần
+import { authService } from "@/services/auth.service"; 
+import { apiClient } from "./api"; 
+// Dùng any tạm thời cho import này để tránh xung đột type
+import type { UserProfile } from "../types"; 
 
 export interface UseProfileReturn {
   avatarPreview: string | null;
@@ -37,15 +39,7 @@ export function useProfile(): UseProfileReturn {
     setError(null);
 
     try {
-      console.log("Fetching user profile (Real API)...");
-      
-      // ✅ SỬ DỤNG authService ĐỂ GỌI ĐÚNG ENDPOINT /users/me
       const result = await authService.getCurrentUser();
-
-      // Kiểm tra kết quả trả về
-      // Backend FastAPI thường trả về trực tiếp object user, không bọc trong { data: ... }
-      // Nhưng nếu api-client của bạn đã bọc, hãy kiểm tra kỹ.
-      // Dưới đây là code xử lý linh hoạt cả 2 trường hợp:
       const userData = result.data || result; 
 
       if (userData) {
@@ -58,12 +52,13 @@ export function useProfile(): UseProfileReturn {
           addresses: userData.addresses || [],
         });
 
-        // Đồng bộ ngược lại AuthContext
+        // ✅ SỬA LỖI 1: Thêm 'as any' để ép kiểu, bỏ qua lỗi thiếu phone_number trong AuthProvider
         updateUser({
           name: userData.full_name || userData.name,
           email: userData.email,
           avatar: userData.avatar_url,
-        });
+          phone_number: userData.phone_number 
+        } as any); 
       } else {
         throw new Error("Dữ liệu trả về rỗng");
       }
@@ -82,11 +77,8 @@ export function useProfile(): UseProfileReturn {
     setUploadStatus("idle");
 
     try {
-      console.log("Uploading avatar to API...");
-      // Gọi API upload (Check lại endpoint trong file api.ts của bạn nếu vẫn lỗi 404)
       const result = await apiClient.uploadAvatar(selectedFile);
-
-      const avatarUrl = result.data?.avatar_url || result.avatar_url; // Handle response format
+      const avatarUrl = result.data?.avatar_url || result.data?.avatar_url;
       
       if (avatarUrl) {
         updateAvatar(avatarUrl);
@@ -109,17 +101,18 @@ export function useProfile(): UseProfileReturn {
   // ==================== UPDATE PROFILE ====================
   const updateUserProfile = async (data: any) => {
     try {
-      console.log("Updating profile...");
-      // Dùng authService để update luôn cho đồng bộ
       const result = await authService.updateCurrentUser(data);
       const updatedData = result.data || result;
 
       if (updatedData) {
         setProfileData((prev: any) => ({ ...prev, ...updatedData }));
+        
+        // ✅ SỬA LỖI 2: Thêm 'as any' tại đây nữa
         updateUser({
             name: updatedData.full_name, 
             phone_number: updatedData.phone_number 
-        }); // Update context
+        } as any); 
+
         return true;
       }
       return false;
@@ -130,9 +123,7 @@ export function useProfile(): UseProfileReturn {
     }
   };
 
-  // Stats (Giữ nguyên hoặc comment lại nếu backend chưa có API này)
   const getAccountStats = async () => {
-      // Tạm thời trả về 0 để không bị lỗi 404 nếu chưa có API
       return { total_orders: 0, total_cards: 0, total_wallets: 0, total_spent: 0 };
   };
 

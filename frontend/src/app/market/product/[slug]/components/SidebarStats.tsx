@@ -245,7 +245,7 @@ Z-Energy Market Analytics
     // Redirect đến trang báo lỗi
     router.push(`/report-error?product=${product.slug}`);
 
-    toast.info("Chuyển đến trang báo lỗi...", {
+    toast("Chuyển đến trang báo lỗi...", {
       duration: 2000,
     });
 

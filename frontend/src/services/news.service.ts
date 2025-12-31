@@ -59,7 +59,7 @@ export const newsService = {
    */
   async getNewsById(id: number | string): Promise<NewsItem> {
     try {
-      return await apiClient.get<NewsItem>(API_ENDPOINTS.NEWS.DETAIL(id))
+      return await apiClient.get<NewsItem>(API_ENDPOINTS.NEWS.DETAIL(id.toString()))
     } catch (error) {
       console.error(`Error fetching news ${id}:`, error)
       throw error

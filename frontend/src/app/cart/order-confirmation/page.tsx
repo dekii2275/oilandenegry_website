@@ -1,13 +1,14 @@
 "use client";
 
-import { useState, useEffect } from "react";
+export const dynamic = "force-dynamic";
+
+import { useState, useEffect, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   CheckCircle,
   Package,
   Truck,
-  Clock,
   Home,
   ShoppingBag,
   ChevronRight,
@@ -50,7 +51,8 @@ interface OrderData {
   status: string;
 }
 
-export default function OrderConfirmationPage() {
+// 1. Tách logic chính ra Component con
+function OrderConfirmationContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const [order, setOrder] = useState<OrderData | null>(null);
@@ -490,5 +492,27 @@ export default function OrderConfirmationPage() {
 
       <Footer />
     </div>
+  );
+}
+
+// 2. Component chính bọc Suspense
+export default function OrderConfirmationPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex flex-col min-h-screen bg-gradient-to-b from-gray-50 to-white">
+        <Header />
+        <main className="flex-grow max-w-7xl mx-auto w-full px-4 py-8">
+          <div className="flex items-center justify-center h-96">
+            <div className="text-center">
+              <div className="w-16 h-16 border-4 border-green-200 border-t-green-600 rounded-full animate-spin mx-auto mb-4"></div>
+              <p className="text-gray-600">Đang tải thông tin đơn hàng...</p>
+            </div>
+          </div>
+        </main>
+        <Footer />
+      </div>
+    }>
+      <OrderConfirmationContent />
+    </Suspense>
   );
 }

@@ -44,8 +44,7 @@ const ensureProductStructure = (data: any, source: string): Product => {
     category: data.category || "Năng lượng",
     description: data.description || "Sản phẩm năng lượng chất lượng cao",
     unit: data.unit || "chiếc",
-    location:
-      data.location || getLocationByStore(data.store?.name) || "Toàn cầu",
+    location: data.location || "Toàn cầu",
     isUp: data.isUp !== undefined ? data.isUp : true,
     change: data.change || "+1.5%",
     changeFormatted:
@@ -53,7 +52,6 @@ const ensureProductStructure = (data: any, source: string): Product => {
       `${marketDetails.changeValue} (${marketDetails.changePercent})`,
     source,
     fromAPI: false,
-    store: data.store,
     // Các trường optional sẽ được thêm sau
   };
 };
@@ -82,7 +80,6 @@ export const findProductBySlug = (slug: string): Product | null => {
       Object.assign(product, {
         description: fromMockProducts.description || product.description,
         unit: fromMockProducts.unit || product.unit,
-        store: fromMockProducts.store || product.store,
       });
     }
 

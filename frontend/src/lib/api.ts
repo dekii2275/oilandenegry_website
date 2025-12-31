@@ -1,32 +1,47 @@
 export const API_ENDPOINTS = {
   AUTH: {
-  REGISTER: `/api/auth/register`,
-  LOGIN: `/api/auth/login`,
-  LOGOUT: `/api/auth/logout`,
-  FORGOT_PASSWORD: `/api/auth/forgot-password`,
-  RESET_PASSWORD: `/api/auth/reset-password`,
-  VERIFY_EMAIL: `/api/auth/verify`,
-},
+    REGISTER: `/api/auth/register`,
+    LOGIN: `/api/auth/login`,
+    LOGOUT: `/api/auth/logout`,
+    FORGOT_PASSWORD: `/api/auth/forgot-password`,
+    RESET_PASSWORD: `/api/auth/reset-password`,
+    VERIFY_EMAIL: `/api/auth/verify`,
+  },
 
   USERS: {
-  PROFILE: `/api/users/me`,
-},
-
+    PROFILE: `/api/users/me`,
+  },
 
   MARKET: {
     DATA: `/api/market-data/`,
     REFRESH_NOW: `/api/market-data/refresh-now`,
+    PRICES: `/api/market-data/prices`,
+    TRENDS: `/api/market-data/trends`,
   },
 
   NEWS: {
     LIST: `/api/news/`,
-    DETAIL: (slug: string) => `/api/news/${slug}`, // backend dùng {slug}
+    DETAIL: (slug: string) => `/api/news/${slug}`,
     CRAWL_NOW: `/api/news/crawl-now`,
+  },
+
+  // --- ĐÃ SỬA: Đổi tên key cho khớp với Service ---
+  CATEGORIES: {
+    LIST: `/api/categories/`,           // Đã đổi từ GET_ALL -> LIST
+    DETAIL: (id: number) => `/api/categories/${id}`, // Đã đổi từ GET_ONE -> DETAIL
+  },
+
+  // --- ĐÃ SỬA: Đổi tên key và thêm VERIFIED ---
+  SUPPLIERS: {
+    LIST: `/api/suppliers/`,            // Đã đổi từ GET_ALL -> LIST
+    DETAIL: (id: number) => `/api/suppliers/${id}`, // Đã đổi từ GET_ONE -> DETAIL
+    VERIFIED: `/api/suppliers/verified`, // <--- Đã thêm dòng này
   },
 
   PRODUCTS: {
     LIST: `/api/products/`,
     DETAIL: (id: number) => `/api/products/${id}`,
+    SEARCH: `/api/products/search`,
   },
 
   STORES: {

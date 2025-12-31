@@ -53,7 +53,7 @@ export const suppliersService = {
    */
   async getSupplierById(id: number | string): Promise<Supplier> {
     try {
-      return await apiClient.get<Supplier>(API_ENDPOINTS.SUPPLIERS.DETAIL(id))
+      return await apiClient.get<Supplier>(API_ENDPOINTS.SUPPLIERS.DETAIL(Number(id)))
     } catch (error) {
       console.error(`Error fetching supplier ${id}:`, error)
       throw error

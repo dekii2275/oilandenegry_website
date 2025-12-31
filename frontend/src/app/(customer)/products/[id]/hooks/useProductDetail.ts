@@ -11,11 +11,12 @@ import {
   NewReview,
 } from "../components/types";
 
-import {
-  mockProductDetail,
-  mockReviews,
-  mockRelatedProducts,
-} from "../utils/productMockData";
+// import {
+//   mockProductDetail,
+//   mockReviews,
+//   mockRelatedProducts,
+// } from "../utils/productMockData";
+
 import { useAuth } from "@/app/providers/AuthProvider";
 
 
@@ -70,6 +71,10 @@ export const useProductDetail = (productId: string) => {
             oldPrice: Number(data.variants?.[0]?.market_price || 0),
             rating: data.rating_average || 0,
             reviewCount: data.review_count || 0,
+            unit: data.unit || "cái",
+            totalReviews: data.review_count || 0,
+            benefits: [],
+
             status: data.is_active ? "CÓ SẴN" : "HẾT HÀNG",
             
             // Xử lý ảnh
@@ -392,18 +397,6 @@ export const useProductDetail = (productId: string) => {
     } else if (type === "decrease" && quantity > 1) {
       setQuantity((prev) => prev - 1);
     }
-  };
-
-  const handleAddToCart = () => {
-      alert(`Đã thêm ${quantity} sản phẩm vào giỏ hàng!`);
-  };
-
-  const handleRequestQuote = () => {
-      alert("Yêu cầu báo giá đã được gửi!");
-  };
-
-  const handleToggleWishlist = () => {
-      setIsInWishlist(!isInWishlist);
   };
 
   const handleSubmitReview = () => {

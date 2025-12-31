@@ -33,7 +33,7 @@ export const categoriesService = {
    */
   async getCategoryById(id: number | string): Promise<Category> {
     try {
-      return await apiClient.get<Category>(API_ENDPOINTS.CATEGORIES.DETAIL(id))
+      return await apiClient.get<Category>(API_ENDPOINTS.CATEGORIES.DETAIL(Number(id)))
     } catch (error) {
       console.error(`Error fetching category ${id}:`, error)
       throw error

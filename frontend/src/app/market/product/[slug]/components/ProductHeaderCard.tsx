@@ -23,7 +23,13 @@ interface ProductHeaderCardProps {
   product: Product;
 }
 
+
+
 export default function ProductHeaderCard({ product }: ProductHeaderCardProps) {
+  const [selectedVariant, setSelectedVariant] = useState<any>(null);
+  const [quantity, setQuantity] = useState<number>(1);
+
+
   const [isFavorite, setIsFavorite] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
@@ -152,7 +158,7 @@ const handleAddToCart = async () => {
   if (!user) {
     const pending = {
       action: "addToCart",
-      productId: product.product_id,
+      productId: product.id,
       variantId: selectedVariant.id,
       quantity,
     };

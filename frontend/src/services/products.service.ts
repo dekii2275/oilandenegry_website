@@ -48,7 +48,7 @@ export const productsService = {
    */
   async getProductById(id: number | string): Promise<Product> {
     try {
-      return await apiClient.get<Product>(API_ENDPOINTS.PRODUCTS.DETAIL(id))
+      return await apiClient.get<Product>(API_ENDPOINTS.PRODUCTS.DETAIL(Number(id)))
     } catch (error) {
       console.error(`Error fetching product ${id}:`, error)
       throw error

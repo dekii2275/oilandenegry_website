@@ -2,6 +2,7 @@
 export interface ProductDetail {
   id: number;
   name: string;
+  sku?: string;
   brand: string;
   status: string;
   category: string;
@@ -11,6 +12,7 @@ export interface ProductDetail {
   unit: string;
   rating: number;
   totalReviews: number;
+  reviewCount?: number;
   images: string[];
   specifications: {
     label: string;
@@ -18,16 +20,23 @@ export interface ProductDetail {
   }[];
   features: string[];
   technicalDetails: {
-    capacity: string;
-    efficiency: string;
-    warranty: string;
-    power: string;
-  };
+  brand: string;
+  model: string;
+  warranty: string;
+  origin: string;
+  capacity?: string;
+  efficiency?: string;
+  power?: string;
+};
+
   benefits: string[];
   supplier: {
-    name: string;
-    logo?: string;
-  };
+  id: number;
+  name: string;
+  logo?: string;
+  slug?: string;
+};
+
 }
 
 export interface Review {
