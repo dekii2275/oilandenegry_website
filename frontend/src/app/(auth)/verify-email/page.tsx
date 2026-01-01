@@ -26,13 +26,8 @@ function VerifyEmailContent() {
 
       try {
         // Gọi API để xác thực email
-        const response = await fetch("/api/auth/verify-email", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ token }),
-        });
+        const response = await fetch(`/api/auth/verify?token=${encodeURIComponent(token)}`, {method: "GET",});
+
 
         const data = await response.json();
 
