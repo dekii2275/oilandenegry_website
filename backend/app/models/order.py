@@ -6,7 +6,6 @@ import enum
 
 # --- ĐỊNH NGHĨA ENUM (ĐỂ KHỚP VỚI API/ORDERS.PY) ---
 class OrderStatus(str, enum.Enum):
-    PENDING = "PENDING"
     CONFIRMED = "CONFIRMED"
     SHIPPING = "SHIPPING"
     COMPLETED = "COMPLETED"
@@ -32,7 +31,7 @@ class Order(Base):
     total_amount = Column(Numeric(12, 2), nullable=False)
     
     # Lưu dưới dạng String trong DB để tránh lỗi phức tạp với PostgreSQL Enum lúc này
-    status = Column(String, default=OrderStatus.PENDING)
+    status = Column(String, default=OrderStatus.CONFIRMED.value)
     shipping_address = Column(String, nullable=True)
     payment_method = Column(String, nullable=True)
     shipping_method = Column(String, default=ShippingMethod.STANDARD) # Thêm cột này cho đủ bộ

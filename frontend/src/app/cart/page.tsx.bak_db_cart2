@@ -44,6 +44,16 @@ export default function CartPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isUpdating, setIsUpdating] = useState(false);
 
+  // ---------- helpers ----------
+  const readCart = (): CartItem[] => {
+    try {
+      const raw = localStorage.getItem("zenergy_cart") || "[]";
+      const data = JSON.parse(raw);
+      return Array.isArray(data) ? data : [];
+    } catch {
+      return [];
+    }
+  };
 
     // ---------- load cart (DB) ------
   useEffect(() => {
@@ -141,7 +151,8 @@ export default function CartPage() {
       createdAt: new Date().toISOString(),
     };
 
-        router.push("/cart/checkout");
+    localStorage.setItem("zenergy_checkout", JSON.stringify(checkoutData));
+    router.push("/cart/checkout");
   };
 
   // ---------- UI ----------

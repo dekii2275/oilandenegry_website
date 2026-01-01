@@ -1,15 +1,17 @@
-from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks, Query
 from sqlalchemy.orm import Session
-from typing import List
+from sqlalchemy import or_, desc, and_
+from typing import List, Optional
+
 from app.core.database import get_db
 from app.models.users import User
 from app.models.store import Store
 from app.api.deps import get_current_admin
 from app.schemas.store import SellerWithStoreResponse, StoreResponse
-from app.schemas.user import UserResponse
 from fastapi_mail import FastMail, MessageSchema, ConnectionConfig, MessageType
 from app.core.config import settings
 
+# Cấu hình Email
 mail_conf = ConnectionConfig(
     MAIL_USERNAME=settings.MAIL_USERNAME,
     MAIL_PASSWORD=settings.MAIL_PASSWORD,
@@ -21,166 +23,165 @@ mail_conf = ConnectionConfig(
     USE_CREDENTIALS=True
 )
 
+# 👇 QUAN TRỌNG: Khởi tạo Router để main.py gọi được
 router = APIRouter()
 
-# --- API LẤY DANH SÁCH SELLER CHỜ DUYỆT ---
-@router.get("/sellers/pending", response_model=List[SellerWithStoreResponse])
-def get_pending_sellers(
-    current_admin: User = Depends(get_current_admin),
-    db: Session = Depends(get_db)
-):
-    pending_sellers = (
-        db.query(User)
-        .join(Store, Store.user_id == User.id)
-        .filter(
-            User.role == "CUSTOMER",
-            User.is_approved == False,
-            Store.is_active == False,
-        )
-        .all()
-    )
-    
-    result = []
-    for seller in pending_sellers:
-        store = db.query(Store).filter(Store.user_id == seller.id).first()
-        seller_data = {
-            "id": seller.id,
-            "email": seller.email,
-            "full_name": seller.full_name,
-            "role": seller.role,
-            "is_verified": seller.is_verified,
-            "is_approved": seller.is_approved,
-            "created_at": seller.created_at,
-            "store": StoreResponse.from_orm(store) if store else None
-        }
-        result.append(SellerWithStoreResponse(**seller_data))
-    
-    return result
-
-# --- API XEM CHI TIẾT SELLER ---
-@router.get("/sellers/{seller_id}", response_model=SellerWithStoreResponse)
-def get_seller_detail(
-    seller_id: int,
+# =================================================================
+# 1. API LẤY DANH SÁCH SELLER (TỐI ƯU HÓA JOIN)
+# =================================================================
+@router.get("/sellers", response_model=List[SellerWithStoreResponse])
+def get_all_sellers(
+    status: Optional[str] = Query(None, description="pending | active | blocked"),
+    search: Optional[str] = None,
     current_admin: User = Depends(get_current_admin),
     db: Session = Depends(get_db)
 ):
     """
-    API để Admin xem chi tiết thông tin của một Seller
+    Lấy danh sách Seller bằng cách JOIN bảng Store và User ngay từ đầu.
+    Giúp tránh lỗi thiếu dữ liệu và tăng tốc độ.
     """
-    seller = db.query(User).filter(
-        User.id == seller_id,
-        User.role == "SELLER"
-    ).first()
     
-    if not seller:
-        raise HTTPException(
-            status_code=404,
-            detail="Không tìm thấy Seller này"
-        )
-    
-    store = db.query(Store).filter(Store.user_id == seller.id).first()
-    
-    seller_data = {
-        "id": seller.id,
-        "email": seller.email,
-        "full_name": seller.full_name,
-        "role": seller.role,
-        "is_verified": seller.is_verified,
-        "is_approved": seller.is_approved,
-        "created_at": seller.created_at,
-        "store": StoreResponse.from_orm(store) if store else None
-    }
-    
-    return SellerWithStoreResponse(**seller_data)
+    # KỸ THUẬT JOIN: Lấy cả object Store và User cùng lúc
+    query = db.query(Store, User).join(User, Store.user_id == User.id)
 
-# --- API DUYỆT SELLER ---
-@router.put("/sellers/{seller_id}/approve", response_model=UserResponse)
+    # --- BỘ LỌC TRẠNG THÁI (Logic chuẩn) ---
+    if status == "pending":
+        # Pending: User chưa được duyệt
+        query = query.filter(User.is_approved == False)
+    elif status == "active":
+        # Active: Đã duyệt + Store bật + User bật
+        query = query.filter(User.is_approved == True, Store.is_active == True, User.is_active == True)
+    elif status == "blocked":
+        # Blocked: Đã duyệt nhưng bị khóa (User tắt hoặc Store tắt)
+        query = query.filter(User.is_approved == True, or_(Store.is_active == False, User.is_active == False))
+
+    # --- TÌM KIẾM ---
+    if search:
+        term = f"%{search}%"
+        query = query.filter(
+            or_(
+                Store.store_name.ilike(term),       # Tên Shop
+                User.email.ilike(term),             # Email chủ shop
+                User.full_name.ilike(term),         # Tên chủ shop
+                Store.phone_number.ilike(term)      # SĐT shop
+            )
+        )
+
+    # Sắp xếp: Mới nhất lên đầu
+    # Kết quả trả về là list các tuple: [(StoreObj, UserObj), ...]
+    raw_results = query.order_by(desc(Store.created_at)).all()
+
+    # --- MAP DỮ LIỆU ---
+    final_results = []
+    
+    for store_obj, user_obj in raw_results:
+        try:
+            # Gom dữ liệu từ 2 bảng vào 1 Schema trả về
+            seller_data = {
+                "id": user_obj.id,
+                "email": user_obj.email,
+                "full_name": user_obj.full_name,
+                "role": user_obj.role,
+                "is_verified": user_obj.is_verified,
+                "is_approved": user_obj.is_approved,
+                "is_active": user_obj.is_active,
+                "created_at": user_obj.created_at,
+                
+                # Convert object Store thành Schema StoreResponse
+                # (Sử dụng from_orm để map tự động các trường như city, district...)
+                "store": StoreResponse.from_orm(store_obj)
+            }
+            final_results.append(SellerWithStoreResponse(**seller_data))
+        except Exception as e:
+            # Nếu có 1 dòng lỗi data, in log và bỏ qua, KHÔNG làm sập app
+            print(f"⚠️ Lỗi map data Seller ID {user_obj.id}: {e}")
+            continue
+            
+    return final_results
+
+
+# =================================================================
+# 2. API DUYỆT (APPROVE)
+# =================================================================
+@router.put("/sellers/{user_id}/approve")
 def approve_seller(
-    seller_id: int,
+    user_id: int,
     background_tasks: BackgroundTasks,
     current_admin: User = Depends(get_current_admin),
     db: Session = Depends(get_db)
 ):
-    # Tìm user (lúc này vẫn đang là CUSTOMER)
-    user = db.query(User).filter(User.id == seller_id, User.role == "CUSTOMER", User.is_approved == False).first()
-    
-    if not user:
-        raise HTTPException(status_code=404, detail="Không tìm thấy người dùng")
+    user = db.query(User).filter(User.id == user_id).first()
+    store = db.query(Store).filter(Store.user_id == user_id).first()
 
-    store = db.query(Store).filter(Store.user_id == user.id).first()
-    if not store:
-        raise HTTPException(status_code=404, detail="Không tìm thấy store của người dùng này")
+    if not user or not store:
+        raise HTTPException(404, "Không tìm thấy dữ liệu Seller/Store")
 
-    # Thực hiện nâng cấp role và duyệt
-    user.role = "SELLER" 
+    # Cập nhật trạng thái
+    user.role = "SELLER"
     user.is_approved = True
-    store.is_active = True
-    
+    user.is_active = True
+    store.is_active = True 
     
     db.commit()
-    db.refresh(user)
 
-    # Gửi email thông báo cho seller
-    html = f"""
-    <h3>Chúc mừng! Tài khoản Nhà bán hàng đã được duyệt</h3>
-    <p>Xin chào {user.full_name},</p>
-    <p>Yêu cầu đăng ký Nhà bán hàng của bạn trên <b>Energy Platform</b> đã được Admin phê duyệt thành công.</p>
-    <p>Bây giờ bạn có thể đăng nhập và bắt đầu đăng tải các sản phẩm của cửa hàng mình.</p>
-    <br>
-    <p>Trân trọng,<br>Đội ngũ hỗ trợ Energy Platform</p>
-    """
-    message = MessageSchema(
-        subject="[Energy Platform] Thông báo: Duyệt tài khoản Nhà bán hàng THÀNH CÔNG",
-        recipients=[user.email],
-        body=html,
-        subtype=MessageType.html
+    # Gửi mail thông báo
+    send_email_notification(
+        background_tasks, user.email, 
+        "Đăng ký thành công", 
+        f"Chúc mừng {user.full_name}, gian hàng {store.store_name} của bạn đã được duyệt!"
     )
-    fm = FastMail(mail_conf)
-    background_tasks.add_task(fm.send_message, message)
+    return {"message": "Đã duyệt thành công"}
 
-    return user
 
-# --- API TỪ CHỐI SELLER ---
-@router.put("/sellers/{seller_id}/reject", response_model=dict)
-async def reject_seller(
-    seller_id: int,
+# =================================================================
+# 3. API TỪ CHỐI (REJECT)
+# =================================================================
+@router.put("/sellers/{user_id}/reject")
+def reject_seller(
+    user_id: int,
     background_tasks: BackgroundTasks,
     current_admin: User = Depends(get_current_admin),
     db: Session = Depends(get_db)
 ):
-    user = db.query(User).filter(User.id == seller_id, User.role == "CUSTOMER").first()
+    user = db.query(User).filter(User.id == user_id).first()
+    store = db.query(Store).filter(Store.user_id == user_id).first()
+
     if not user:
-        raise HTTPException(status_code=404, detail="Không tìm thấy người dùng")
+        raise HTTPException(404, "Không tìm thấy User")
 
-    user_email = user.email
-    user_name = user.full_name
+    email = user.email
+    name = user.full_name
 
-    user.is_approved = False
-    
-    # Xóa store đang chờ duyệt để biến mất khỏi pending
-    store = db.query(Store).filter(Store.user_id == user.id).first()
+    # Nếu từ chối: Xóa Store rác, Reset User về trạng thái chưa duyệt
     if store:
         db.delete(store)
     
+    user.is_approved = False
+    
     db.commit()
 
-    html = f"""
-    <h3>Thông báo về yêu cầu đăng ký Nhà bán hàng</h3>
-    <p>Xin chào {user_name},</p>
-    <p>Chúng tôi rất tiếc phải thông báo rằng yêu cầu đăng ký Nhà bán hàng của bạn đã <b>không được phê duyệt</b> vào lúc này.</p>
-    <p>Lý do có thể do thông tin cửa hàng hoặc giấy phép kinh doanh chưa hợp lệ. Bạn vui lòng kiểm tra lại thông tin và đăng ký lại hoặc liên hệ hỗ trợ.</p>
-    <br>
-    <p>Trân trọng,<br>Đội ngũ hỗ trợ Energy Platform</p>
-    """
+    send_email_notification(
+        background_tasks, email, 
+        "Đăng ký bị từ chối", 
+        f"Chào {name}, hồ sơ đăng ký Seller của bạn chưa đạt yêu cầu. Vui lòng kiểm tra lại thông tin."
+    )
+    return {"message": "Đã từ chối và xóa hồ sơ"}
+
+
+# =================================================================
+# HELPER GỬI MAIL
+# =================================================================
+def send_email_notification(bg_tasks, email, subject, body):
+    # Kiểm tra nếu chưa cấu hình mail thì log ra console
+    if not settings.MAIL_USERNAME:
+        print(f"📧 [Mock Email] To: {email} | Subject: {subject}")
+        return
+
     message = MessageSchema(
-        subject="[Energy Platform] Thông báo: Kết quả đăng ký Nhà bán hàng",
-        recipients=[user_email],
-        body=html,
+        subject=f"[Energy Platform] {subject}",
+        recipients=[email],
+        body=body,
         subtype=MessageType.html
     )
     fm = FastMail(mail_conf)
-    background_tasks.add_task(fm.send_message, message)
-    
-    return {
-        "message": f"Đã từ chối đăng ký của {user_email}. Email thông báo đã được gửi."
-    }
+    bg_tasks.add_task(fm.send_message, message)

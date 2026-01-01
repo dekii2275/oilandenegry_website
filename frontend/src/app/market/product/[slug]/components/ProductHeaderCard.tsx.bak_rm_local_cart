@@ -121,6 +121,7 @@ export default function ProductHeaderCard({ product }: ProductHeaderCardProps) {
   };
       // Lấy giỏ hàng hiện tại từ localStorage
       const currentCart = JSON.parse(
+        localStorage.getItem("zenergy_cart") || "[]"
       );
 
       // Thêm sản phẩm vào giỏ hàng
@@ -134,6 +135,7 @@ export default function ProductHeaderCard({ product }: ProductHeaderCardProps) {
       }
 
       // Lưu lại vào localStorage
+      localStorage.setItem("zenergy_cart", JSON.stringify(currentCart));
 
       // Dispatch event để cập nhật UI
       const event = new CustomEvent("cart-updated", {

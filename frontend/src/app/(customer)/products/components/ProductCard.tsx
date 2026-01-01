@@ -15,6 +15,9 @@ import {
 } from "lucide-react";
 import type { UIProduct } from "../utils/productUtils";
 
+// 👇 1. IMPORT HÀM XỬ LÝ ẢNH (Đảm bảo bạn đã tạo file này ở bước trước)
+import { getFullImageUrl } from "@/utils/imageHelper";
+
 interface ProductCardProps {
   product: UIProduct;
   onAddToCart: (product: UIProduct) => void;
@@ -134,10 +137,16 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onAddToCart }) => {
         className={`bg-white rounded-[25px] overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 group cursor-pointer h-full flex flex-col ${theme.borderColor}`}
       >
         <div className="relative overflow-hidden bg-gray-100 flex-shrink-0">
+          
+          {/* 👇 2. SỬA THẺ IMG TẠI ĐÂY */}
           <img
-            src={product.image}
+            src={getFullImageUrl(product.image)} // ✅ Dùng hàm xử lý ảnh
             alt={product.name}
             className="w-full h-56 object-cover group-hover:scale-110 transition-transform duration-300"
+            onError={(e) => {
+              // Fallback nếu ảnh lỗi hẳn
+              e.currentTarget.src = "https://placehold.co/600x400?text=No+Image";
+            }}
           />
 
           {/* Badge trạng thái cho sản phẩm thông thường */}
@@ -160,6 +169,8 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onAddToCart }) => {
               {product.status}
             </div>
           )}
+
+          {/* ... (Các phần code bên dưới giữ nguyên) ... */}
 
           {/* Badge loại (DỊCH VỤ/DỰ ÁN) */}
           {(isTransportService || isProject) && (

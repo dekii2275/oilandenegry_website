@@ -94,33 +94,28 @@ export default function ProductHeaderCard({ product }: ProductHeaderCardProps) {
     if (authLoading) return;
     if (!checkAuthAndRedirect("buy-now")) return;
 
-    // yêu cầu chọn biến thể (vì backend cart dùng variant_id)
-    if (!selectedVariant?.id) {
-      toast.error("Vui lòng chọn biến thể trước khi mua!", { duration: 3000 });
-      return;
-    }
-
     setIsLoading(true);
     try {
-      await apiClient.post("/cart/items", {
-        variant_id: selectedVariant.id,
+      // Mock: Thêm vào giỏ hàng (trong thực tế sẽ gọi API)
+      console.log("Mua ngay sản phẩm:", product);
+
+      // Tạo mock cart item
+      const cartItem = {
+        id: product.id,
+        name: product.name,
+        price:
+          typeof product.price === "number"
+            ? product.price
+            : parseFloat(product.price as string),
         quantity: 1,
-      });
+        image: product.category?.includes("Dầu") ? "/oil.png" : "/energy.png",
+        slug: product.slug,
+        unit: product.unit,
+      };
 
-      window.dispatchEvent(new Event("cart-updated"));
-      toast.success("Đã thêm vào giỏ hàng!", { duration: 2500, icon: "🛒" });
-
-      // chuyển thẳng sang checkout (checkout sẽ fetch cart DB)
-      router.push("/cart/checkout");
-    } catch (error) {
-      console.error("Lỗi khi mua ngay:", error);
-      toast.error("Có lỗi xảy ra khi xử lý đơn hàng!", { duration: 4000 });
-    } finally {
-      setIsLoading(false);
-    }
-  };
       // Lấy giỏ hàng hiện tại từ localStorage
       const currentCart = JSON.parse(
+        localStorage.getItem("zenergy_cart") || "[]"
       );
 
       // Thêm sản phẩm vào giỏ hàng
@@ -134,6 +129,7 @@ export default function ProductHeaderCard({ product }: ProductHeaderCardProps) {
       }
 
       // Lưu lại vào localStorage
+      localStorage.setItem("zenergy_cart", JSON.stringify(currentCart));
 
       // Dispatch event để cập nhật UI
       const event = new CustomEvent("cart-updated", {
@@ -170,20 +166,31 @@ const handleAddToCart = async () => {
 
   setIsLoading(true);
   try {
-    await apiClient.post("/cart/items", {
-      variant_id: selectedVariant.id,
-      quantity,
+    const res = await fetch("/api/cart/items", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({
+        variant_id: selectedVariant.id,
+        quantity,
+      }),
     });
+
+    if (!res.ok) {
+      const t = await res.text();
+      console.error("Add cart failed:", res.status, t);
+      toast.error("Thêm vào giỏ hàng thất bại!");
+      return;
+    }
 
     window.dispatchEvent(new Event("cart-updated"));
     toast.success("Đã thêm vào giỏ hàng!", { duration: 3000, icon: "🛒" });
-  } catch (e: any) {
-    console.error("Add cart failed:", e);
-    toast.error("Thêm vào giỏ hàng thất bại!");
   } finally {
     setIsLoading(false);
   }
 };
+
+
   // ✅ Gọi API backend thật
 //   await fetch("/api/cart/items", {
 //   method: "POST",

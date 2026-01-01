@@ -223,7 +223,7 @@ export const useProductDetail = (productId: string) => {
         window.dispatchEvent(new Event("cart-updated"));
       }
 
-      toast.success("Đã thêm vào giỏ hàng!", { duration: 2500, icon: "��" });
+      toast.success("Đã thêm vào giỏ hàng!", { duration: 2500, icon: "🛒" });
 
       // chuyển sang checkout (checkout sẽ fetch DB cart)
       router.push("/cart/checkout");

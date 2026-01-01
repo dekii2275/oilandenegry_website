@@ -144,9 +144,9 @@ def create_order(
     
     # Xác định initial status
     if order_in.payment_method == PaymentMethod.COD.value:
-        initial_status = OrderStatus.PLACED.value
+        initial_status = OrderStatus.CONFIRMED.value
     else:
-        initial_status = OrderStatus.PLACED.value
+        initial_status = OrderStatus.CONFIRMED.value
     
     # Tạo Order
     new_order = Order(
@@ -273,7 +273,7 @@ def cancel_order(
     db: Session = Depends(get_db)
 ):
     """
-    Customer hủy đơn hàng khi còn ở trạng thái chờ xử lý (PLACED/PENDING_CONFIRM).
+    Customer hủy đơn hàng khi còn ở trạng thái CONFIRMED (chưa giao).
     Hoàn lại tồn kho cho các variant trong đơn.
     """
     order = db.query(Order).filter(
@@ -284,13 +284,9 @@ def cancel_order(
     if not order:
         raise HTTPException(status_code=404, detail="Không tìm thấy đơn hàng")
 
-    # Cho phép hủy khi trạng thái là PLACED hoặc PENDING_CONFIRM (nếu enum có)
-    allowed_pending = {OrderStatus.PLACED}
-    if hasattr(OrderStatus, "PENDING_CONFIRM"):
-        allowed_pending.add(OrderStatus.PENDING_CONFIRM)
-
-    if order.status not in allowed_pending:
-        raise HTTPException(status_code=400, detail="Chỉ có thể hủy đơn hàng đang chờ xử lý")
+    # ✅ Chỉ cho phép hủy khi đơn đang CONFIRMED (chưa giao)
+    if order.status != OrderStatus.CONFIRMED:
+        raise HTTPException(status_code=400, detail="Chỉ có thể hủy đơn hàng ở trạng thái CONFIRMED")
 
     # Hoàn lại stock cho các item
     items = db.query(OrderItem).filter(OrderItem.order_id == order.id).all()

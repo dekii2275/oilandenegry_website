@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { ShoppingCart } from "lucide-react";
-import apiClient from "@/lib/api-client";
 
 interface CartBadgeProps {
   showText?: boolean;
@@ -19,26 +18,30 @@ export default function CartBadge({
   const [isHovered, setIsHovered] = useState(false);
 
   useEffect(() => {
-    const updateCartCount = async () => {
-      try {
-        const res = await apiClient.get("/cart");
-        const items = res.data?.items || [];
-        const count = items.reduce(
-          (sum: number, item: any) => sum + (item.quantity || 0),
-          0
-        );
-        setCartCount(count);
-      } catch (error) {
-        // Thường là chưa login hoặc lỗi mạng
+    const updateCartCount = () => {
+      const savedCart = localStorage.getItem("zenergy_cart");
+      if (savedCart) {
+        try {
+          const cartItems = JSON.parse(savedCart);
+          const count = cartItems.reduce(
+            (sum: number, item: any) => sum + (item.quantity || 1),
+            0
+          );
+          setCartCount(count);
+        } catch (error) {
+          console.error("Error parsing cart:", error);
+          setCartCount(0);
+        }
+      } else {
         setCartCount(0);
-      } finally {
-        setIsLoading(false);
       }
+      setIsLoading(false);
     };
-    void void updateCartCount();
+
+    updateCartCount();
 
     const handleCartUpdate = () => {
-      void void updateCartCount();
+      updateCartCount();
     };
 
     window.addEventListener("cart-updated", handleCartUpdate);

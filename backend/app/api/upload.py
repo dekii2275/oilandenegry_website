@@ -1,7 +1,7 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException
 import shutil
 import os
-import uuid
+from uuid import uuid4
 
 router = APIRouter()
 
@@ -10,27 +10,32 @@ UPLOAD_DIR = "static/images"
 # Tạo thư mục nếu chưa có
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
-# Thay IP này bằng IP Server AWS của bạn (để trả về link ảnh xem được)
-BASE_URL = os.getenv("BASE_URL")
-
 @router.post("/image")
 async def upload_image(file: UploadFile = File(...)):
     # 1. Kiểm tra định dạng file
-    if file.content_type not in ["image/jpeg", "image/png", "image/jpg"]:
-        raise HTTPException(status_code=400, detail="Chỉ chấp nhận file ảnh (jpg, png)")
+    if file.content_type not in ["image/jpeg", "image/png", "image/jpg", "image/webp"]:
+        raise HTTPException(status_code=400, detail="Chỉ chấp nhận file ảnh (jpg, png, webp)")
 
-    # 2. Đổi tên file để không bị trùng (dùng UUID)
-    # Ví dụ: avatar.jpg -> 550e8400-e29b-....jpg
-    file_extension = file.filename.split(".")[-1]
-    new_filename = f"{uuid.uuid4()}.{file_extension}"
-    file_location = f"{UPLOAD_DIR}/{new_filename}"
+    try:
+        # 2. Đổi tên file để không bị trùng (dùng UUID)
+        # Lấy đuôi file (ví dụ: .jpg)
+        file_extension = file.filename.split(".")[-1]
+        new_filename = f"{uuid4()}.{file_extension}"
+        
+        # Đường dẫn file trên ổ cứng (để lưu)
+        file_path = f"{UPLOAD_DIR}/{new_filename}"
 
-    # 3. Lưu file vào ổ cứng server
-    with open(file_location, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
+        # 3. Lưu file vào ổ cứng server
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
 
-    # 4. Trả về đường dẫn xem ảnh
-    # Ví dụ: http://3.131.../static/images/abc.jpg
-    url = f"{BASE_URL}/{file_location}"
-    
-    return {"url": url}
+        # 4. Trả về đường dẫn xem ảnh (Đường dẫn tương đối)
+        # ✅ QUAN TRỌNG: Trả về bắt đầu bằng dấu "/" (ví dụ: /static/images/abc.jpg)
+        # Frontend sẽ tự nối thêm https://zenergy.cloud vào trước.
+        url = f"/{file_path}"
+        
+        return {"url": url}
+
+    except Exception as e:
+        print(f"Error uploading image: {e}")
+        raise HTTPException(status_code=500, detail="Lỗi lưu ảnh lên server")

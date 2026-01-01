@@ -9,7 +9,6 @@ import {
   Shield,
   Lock,
   ChevronRight,
-  CheckCircle,
   Building,
   Wallet,
   Package,
@@ -34,27 +33,25 @@ export default function CheckoutPage() {
   const [checkoutData, setCheckoutData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState("bank_transfer");
+  const [paymentMethod, setPaymentMethod] = useState<"bank_transfer" | "cod">(
+    "bank_transfer"
+  );
   const [agreeTerms, setAgreeTerms] = useState(false);
+
+  // ✅ Chỉ giữ 3 trường cần thiết
   const [customerInfo, setCustomerInfo] = useState({
     name: "",
-    email: "",
     phone: "",
     address: "",
-    company: "",
-    taxCode: "",
   });
 
   useEffect(() => {
     const data = localStorage.getItem("zenergy_checkout");
     if (!data) {
-      toast.error(
-        "Không có thông tin thanh toán! Vui lòng thêm sản phẩm vào giỏ hàng.",
-        {
-          duration: 5000,
-          icon: "🛒",
-        }
-      );
+      toast.error("Không có thông tin thanh toán! Vui lòng thêm sản phẩm vào giỏ hàng.", {
+        duration: 5000,
+        icon: "🛒",
+      });
       router.push("/cart");
       return;
     }
@@ -63,10 +60,15 @@ export default function CheckoutPage() {
       const parsedData = JSON.parse(data);
       setCheckoutData(parsedData);
 
-      // Load saved customer info if exists
+      // Load saved customer info if exists (sanitize chỉ lấy 3 field)
       const savedInfo = localStorage.getItem("zenergy_customer_info");
       if (savedInfo) {
-        setCustomerInfo(JSON.parse(savedInfo));
+        const parsed = JSON.parse(savedInfo);
+        setCustomerInfo({
+          name: parsed?.name || "",
+          phone: parsed?.phone || "",
+          address: parsed?.address || "",
+        });
       }
     } catch (error) {
       console.error("Error parsing checkout data:", error);
@@ -91,33 +93,19 @@ export default function CheckoutPage() {
   const handlePlaceOrder = async () => {
     // Validate customer info
     if (!customerInfo.name.trim()) {
-      toast.error("Vui lòng nhập họ tên!", {
-        icon: "✏️",
-      });
-      return;
-    }
-    if (!customerInfo.email.trim()) {
-      toast.error("Vui lòng nhập email!", {
-        icon: "📧",
-      });
+      toast.error("Vui lòng nhập họ tên!", { icon: "✏️" });
       return;
     }
     if (!customerInfo.phone.trim()) {
-      toast.error("Vui lòng nhập số điện thoại!", {
-        icon: "📱",
-      });
+      toast.error("Vui lòng nhập số điện thoại!", { icon: "📱" });
       return;
     }
     if (!customerInfo.address.trim()) {
-      toast.error("Vui lòng nhập địa chỉ giao hàng!", {
-        icon: "📍",
-      });
+      toast.error("Vui lòng nhập địa chỉ giao hàng!", { icon: "📍" });
       return;
     }
     if (!agreeTerms) {
-      toast.error("Vui lòng đồng ý với các điều khoản!", {
-        icon: "📋",
-      });
+      toast.error("Vui lòng đồng ý với các điều khoản!", { icon: "📋" });
       return;
     }
 
@@ -125,16 +113,11 @@ export default function CheckoutPage() {
 
     try {
       // Save customer info for next time
-      localStorage.setItem(
-        "zenergy_customer_info",
-        JSON.stringify(customerInfo)
-      );
+      localStorage.setItem("zenergy_customer_info", JSON.stringify(customerInfo));
 
       // Create order data
       const orderData = {
-        orderId: `ZNRG-${Date.now()}-${Math.random()
-          .toString(36)
-          .substr(2, 9)}`,
+        orderId: `ZNRG-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         customer: customerInfo,
         items: checkoutData.items,
         paymentMethod,
@@ -147,9 +130,7 @@ export default function CheckoutPage() {
       };
 
       // Save order to localStorage (simulating API call)
-      const existingOrders = JSON.parse(
-        localStorage.getItem("zenergy_orders") || "[]"
-      );
+      const existingOrders = JSON.parse(localStorage.getItem("zenergy_orders") || "[]");
       existingOrders.push(orderData);
       localStorage.setItem("zenergy_orders", JSON.stringify(existingOrders));
 
@@ -169,10 +150,7 @@ export default function CheckoutPage() {
           <p className="font-bold">🎉 Đặt hàng thành công!</p>
           <p className="text-sm">Mã đơn hàng: {orderData.orderId}</p>
         </div>,
-        {
-          duration: 8000,
-          icon: "✅",
-        }
+        { duration: 8000, icon: "✅" }
       );
 
       // Redirect to confirmation page
@@ -181,10 +159,7 @@ export default function CheckoutPage() {
       }, 2000);
     } catch (error) {
       console.error("Error placing order:", error);
-      toast.error("Có lỗi xảy ra khi đặt hàng!", {
-        duration: 5000,
-        icon: "❌",
-      });
+      toast.error("Có lỗi xảy ra khi đặt hàng!", { duration: 5000, icon: "❌" });
     } finally {
       setIsProcessing(false);
     }
@@ -232,9 +207,7 @@ export default function CheckoutPage() {
           <div className="lg:col-span-2 space-y-6">
             {/* Customer Information */}
             <div className="bg-white rounded-3xl p-6 shadow-lg border border-gray-100">
-              <h2 className="text-xl font-bold text-gray-800 mb-6">
-                Thông tin khách hàng
-              </h2>
+              <h2 className="text-xl font-bold text-gray-800 mb-6">Thông tin khách hàng</h2>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
@@ -254,21 +227,6 @@ export default function CheckoutPage() {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Email *
-                  </label>
-                  <input
-                    type="email"
-                    name="email"
-                    value={customerInfo.email}
-                    onChange={handleInputChange}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none transition-all"
-                    placeholder="example@email.com"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
                     Số điện thoại *
                   </label>
                   <input
@@ -279,20 +237,6 @@ export default function CheckoutPage() {
                     className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none transition-all"
                     placeholder="0987 654 321"
                     required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Công ty
-                  </label>
-                  <input
-                    type="text"
-                    name="company"
-                    value={customerInfo.company}
-                    onChange={handleInputChange}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none transition-all"
-                    placeholder="Công ty TNHH ABC"
                   />
                 </div>
 
@@ -310,20 +254,6 @@ export default function CheckoutPage() {
                     required
                   />
                 </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Mã số thuế
-                  </label>
-                  <input
-                    type="text"
-                    name="taxCode"
-                    value={customerInfo.taxCode}
-                    onChange={handleInputChange}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none transition-all"
-                    placeholder="0101234567"
-                  />
-                </div>
               </div>
             </div>
 
@@ -335,66 +265,68 @@ export default function CheckoutPage() {
               </h2>
 
               <div className="space-y-4">
-                <label className="flex items-center gap-3 p-4 border-2 border-green-500 rounded-xl bg-green-50 cursor-pointer transition-all hover:bg-green-100">
+                {/* Bank transfer */}
+                <label
+                  className={[
+                    "flex items-center gap-3 p-4 border-2 rounded-xl cursor-pointer transition-all",
+                    paymentMethod === "bank_transfer"
+                      ? "border-green-500 bg-green-50 hover:bg-green-100"
+                      : "border-gray-200 hover:border-green-300 hover:bg-gray-50",
+                  ].join(" ")}
+                >
                   <input
                     type="radio"
                     name="payment"
                     value="bank_transfer"
                     checked={paymentMethod === "bank_transfer"}
-                    onChange={(e) => setPaymentMethod(e.target.value)}
+                    onChange={() => setPaymentMethod("bank_transfer")}
                     className="w-5 h-5 text-green-600"
                   />
-                  <Building className="text-green-600" size={24} />
-                  <div className="flex-1">
-                    <p className="font-bold text-gray-800">
-                      Chuyển khoản ngân hàng
-                    </p>
-                    <p className="text-sm text-gray-600 mt-1">
-                      Thanh toán qua Internet Banking
-                    </p>
-                  </div>
-                  <Shield className="text-green-600" size={20} />
-                </label>
-
-                <label className="flex items-center gap-3 p-4 border-2 border-gray-200 rounded-xl hover:border-green-300 cursor-pointer transition-all hover:bg-gray-50">
-                  <input
-                    type="radio"
-                    name="payment"
-                    value="credit_card"
-                    checked={paymentMethod === "credit_card"}
-                    onChange={(e) => setPaymentMethod(e.target.value)}
-                    className="w-5 h-5 text-green-600"
+                  <Building
+                    className={
+                      paymentMethod === "bank_transfer" ? "text-green-600" : "text-gray-400"
+                    }
+                    size={24}
                   />
-                  <CreditCard className="text-gray-400" size={24} />
                   <div className="flex-1">
-                    <p className="font-bold text-gray-800">
-                      Thẻ tín dụng/ghi nợ
-                    </p>
-                    <p className="text-sm text-gray-600 mt-1">
-                      Visa, Mastercard, JCB
-                    </p>
+                    <p className="font-bold text-gray-800">Chuyển khoản ngân hàng</p>
+                    <p className="text-sm text-gray-600 mt-1">Thanh toán qua Internet Banking</p>
                   </div>
+                  <Shield
+                    className={paymentMethod === "bank_transfer" ? "text-green-600" : "text-gray-300"}
+                    size={20}
+                  />
                 </label>
 
-                <label className="flex items-center gap-3 p-4 border-2 border-gray-200 rounded-xl hover:border-green-300 cursor-pointer transition-all hover:bg-gray-50">
+                {/* COD */}
+                <label
+                  className={[
+                    "flex items-center gap-3 p-4 border-2 rounded-xl cursor-pointer transition-all",
+                    paymentMethod === "cod"
+                      ? "border-green-500 bg-green-50 hover:bg-green-100"
+                      : "border-gray-200 hover:border-green-300 hover:bg-gray-50",
+                  ].join(" ")}
+                >
                   <input
                     type="radio"
                     name="payment"
                     value="cod"
                     checked={paymentMethod === "cod"}
-                    onChange={(e) => setPaymentMethod(e.target.value)}
+                    onChange={() => setPaymentMethod("cod")}
                     className="w-5 h-5 text-green-600"
                   />
-                  <Wallet className="text-gray-400" size={24} />
+                  <Wallet
+                    className={paymentMethod === "cod" ? "text-green-600" : "text-gray-400"}
+                    size={24}
+                  />
                   <div className="flex-1">
-                    <p className="font-bold text-gray-800">
-                      Thanh toán khi nhận hàng
-                    </p>
-                    <p className="text-sm text-gray-600 mt-1">
-                      Trả tiền mặt khi nhận được hàng
-                    </p>
+                    <p className="font-bold text-gray-800">Thanh toán khi nhận hàng</p>
+                    <p className="text-sm text-gray-600 mt-1">Trả tiền mặt khi nhận được hàng</p>
                   </div>
-                  <Truck className="text-gray-400" size={20} />
+                  <Truck
+                    className={paymentMethod === "cod" ? "text-green-600" : "text-gray-300"}
+                    size={20}
+                  />
                 </label>
               </div>
             </div>
@@ -403,9 +335,7 @@ export default function CheckoutPage() {
           {/* Right Column - Order Summary */}
           <div className="space-y-6">
             <div className="bg-white rounded-3xl p-6 shadow-lg border border-gray-100 sticky top-6">
-              <h2 className="text-xl font-bold text-gray-800 mb-6">
-                Tóm tắt đơn hàng
-              </h2>
+              <h2 className="text-xl font-bold text-gray-800 mb-6">Tóm tắt đơn hàng</h2>
 
               {/* Order Items */}
               <div className="space-y-4 mb-6 max-h-96 overflow-y-auto pr-2">
@@ -418,9 +348,7 @@ export default function CheckoutPage() {
                       <Package size={16} className="text-green-600" />
                     </div>
                     <div className="flex-1">
-                      <p className="font-medium text-gray-800 line-clamp-1">
-                        {item.name}
-                      </p>
+                      <p className="font-medium text-gray-800 line-clamp-1">{item.name}</p>
                       <p className="text-sm text-gray-500">
                         {item.quantity} × ${item.price.toFixed(2)}
                       </p>
@@ -454,9 +382,7 @@ export default function CheckoutPage() {
                 </div>
                 <div className="border-t border-gray-200 pt-3">
                   <div className="flex justify-between">
-                    <span className="text-lg font-bold text-gray-800">
-                      Tổng cộng
-                    </span>
+                    <span className="text-lg font-bold text-gray-800">Tổng cộng</span>
                     <span className="text-2xl font-black text-green-600">
                       ${checkoutData.total.toFixed(2)}
                     </span>
@@ -478,17 +404,11 @@ export default function CheckoutPage() {
                   </p>
                   <p className="text-xs text-gray-500 mt-1">
                     Bằng cách đặt hàng, bạn đồng ý với{" "}
-                    <Link
-                      href="/terms"
-                      className="text-green-600 hover:underline"
-                    >
+                    <Link href="/terms" className="text-green-600 hover:underline">
                       điều khoản sử dụng
                     </Link>{" "}
                     và{" "}
-                    <Link
-                      href="/privacy"
-                      className="text-green-600 hover:underline"
-                    >
+                    <Link href="/privacy" className="text-green-600 hover:underline">
                       chính sách bảo mật
                     </Link>{" "}
                     của chúng tôi.
@@ -520,9 +440,7 @@ export default function CheckoutPage() {
                 <div className="flex items-start gap-2">
                   <Shield size={16} className="text-green-600 mt-0.5" />
                   <div>
-                    <p className="text-sm text-green-800 font-medium">
-                      🛡️ Đảm bảo an toàn
-                    </p>
+                    <p className="text-sm text-green-800 font-medium">🛡️ Đảm bảo an toàn</p>
                     <p className="text-xs text-green-600 mt-1">
                       Thông tin được mã hóa và bảo mật theo tiêu chuẩn PCI DSS
                     </p>
@@ -534,10 +452,7 @@ export default function CheckoutPage() {
               <div className="mt-4 text-center">
                 <p className="text-sm text-gray-500">
                   Cần hỗ trợ?{" "}
-                  <Link
-                    href="/contact"
-                    className="text-green-600 hover:text-green-700 font-medium"
-                  >
+                  <Link href="/contact" className="text-green-600 hover:text-green-700 font-medium">
                     Liên hệ chúng tôi
                   </Link>
                 </p>
