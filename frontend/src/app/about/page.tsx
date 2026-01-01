@@ -1,6 +1,7 @@
 /* ===== ABOUT PAGE (ALL IN ONE) ===== */
 import Header from "@/components/home/Header"
 import Footer from "@/components/home/Footer"
+import Link from "next/dist/client/link";
 
 export default function AboutPage() {
   return (
@@ -146,12 +147,19 @@ export default function AboutPage() {
             </div>
 
             <div className="flex gap-4">
-              <button className="bg-white text-green-700 px-6 py-3 rounded-full font-medium">
+              <Link
+                href="/about/contact"
+                className="bg-white text-green-700 px-6 py-3 rounded-full font-medium"
+              >
                 Liên hệ ngay
-              </button>
-              <button className="border border-white text-white px-6 py-3 rounded-full">
-                Xem hồ sơ năng lực
-              </button>
+              </Link>
+
+              <Link
+                href="/about/register"
+                className="border border-white text-white px-6 py-3 rounded-full"
+              >
+                Trở thành người bán
+              </Link>
             </div>
           </div>
         </div>
