@@ -19,6 +19,13 @@ import { Product } from "../types";
 import { useAuth } from "@/app/providers/AuthProvider";
 import { toast } from "react-hot-toast";
 
+const getToken = () =>
+  localStorage.getItem("zenergy_token") ||
+  localStorage.getItem("access_token") ||
+  localStorage.getItem("token") ||
+  "";
+
+
 interface ProductHeaderCardProps {
   product: Product;
 }
@@ -155,23 +162,32 @@ const handleAddToCart = async () => {
   if (!product || !selectedVariant) return;
 
   // Nếu chưa đăng nhập -> giữ nguyên luồng cũ
-  if (!user) {
-    const pending = {
-      action: "addToCart",
-      productId: product.id,
-      variantId: selectedVariant.id,
-      quantity,
-    };
-    sessionStorage.setItem("pendingAction", JSON.stringify(pending));
-    router.push("/login");
-    return;
-  }
+  const token = getToken();
+  if (!token) {
+  const pending = {
+    action: "addToCart",
+    productId: product.id,
+    variantId: selectedVariant.id,
+    quantity,
+  };
+  sessionStorage.setItem("pendingAction", JSON.stringify(pending));
+  router.push(`/login?redirect=${encodeURIComponent(window.location.href)}`);
+  return;
+}
 
   // ✅ Gọi API backend thật
-  await apiClient.post("/api/cart/items", {
+  await apiClient.post(
+  "/cart/items",
+  {
     variant_id: selectedVariant.id,
     quantity,
-  });
+  },
+  {
+    headers: { Authorization: `Bearer ${token}` },
+  }
+);
+
+
 
   // Bắn event để Header / UI update số lượng
   window.dispatchEvent(new Event("cart-updated"));

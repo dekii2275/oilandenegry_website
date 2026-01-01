@@ -95,8 +95,13 @@ services:
     depends_on:
       - backend
     environment:
-      # URL này Client sẽ gọi, nên phải là https://zenergy.cloud/api
       NEXT_PUBLIC_API_URL: https://zenergy.cloud/api
+      NODE_TLS_REJECT_UNAUTHORIZED: "0"
+      HOSTNAME: "0.0.0.0" # <-- Giữ dòng này cũng tốt
+    
+    # 👇👇👇 QUAN TRỌNG: Thêm dòng này để ÉP Next.js mở cổng cho Nginx vào 👇👇👇
+    command: ["npm", "start", "--", "-H", "0.0.0.0", "-p", "3000"]
+    
     extra_hosts:
       - "zenergy.cloud:host-gateway"
     expose:

@@ -1,43 +1,81 @@
-/**
- * Market Data Service
- */
+// --- FILE: src/services/market.service.ts ---
 
 import { apiClient } from '@/lib/api-client'
 import { API_ENDPOINTS } from '@/lib/api'
 import type { MarketDataResponse, MarketPrice } from '@/types/market'
 
+// 👇 HÀM MAP DỮ LIỆU: Chuyển Backend (snake_case) -> Frontend (camelCase)
+const mapMarketItem = (item: any): MarketPrice => {
+  // Logic tính toán cơ bản nếu backend trả thiếu
+  const price = Number(item.current_price || item.price || 0);
+  const change = Number(item.change || 0);
+  const percentChange = Number(item.percent_change || item.change_percent || 0);
+  
+  return {
+    id: item.id || item.symbol,
+    symbol: item.symbol,
+    name: item.name || item.symbol,
+    
+    // Map giá trị số
+    price: price,
+    change: change,
+    percentChange: percentChange,
+    
+    // Logic xác định tăng/giảm
+    isPositive: change >= 0,
+    
+    // Map thông tin bổ sung
+    open: Number(item.open_price || item.open || 0),
+    high: Number(item.high_price || item.high || 0),
+    low: Number(item.low_price || item.low || 0),
+    volume: Number(item.volume || 0),
+    
+    unit: item.unit || 'USD',
+    updatedAt: item.updated_at || item.updatedAt || new Date().toISOString(),
+  };
+};
+
 export const marketService = {
   /**
-   * Lấy giá thị trường
+   * Lấy giá thị trường (Cho 4 ô header và bảng)
    */
   async getMarketPrices(): Promise<MarketPrice[]> {
     try {
-      const response = await apiClient.get<MarketDataResponse | MarketPrice[]>(
-        API_ENDPOINTS.MARKET.PRICES
-      )
+      // Gọi API lấy danh sách
+      // Lưu ý: Dùng endpoint MARKET.DATA vì log backend của bạn báo endpoint này chạy ổn (200 OK)
+      const response = await apiClient.get<any>(API_ENDPOINTS.MARKET.DATA);
       
-      // Hỗ trợ cả array response và object response
+      let rawList: any[] = [];
+      
+      // Xử lý các trường hợp trả về khác nhau của API
       if (Array.isArray(response)) {
-        return response
+        rawList = response;
+      } else if (response && Array.isArray(response.data)) {
+        rawList = response.data;
+      } else if (response && Array.isArray(response.prices)) {
+        rawList = response.prices;
       }
       
-      return response.prices || []
+      // Map dữ liệu sang chuẩn camelCase
+      return rawList.map(mapMarketItem);
+
     } catch (error) {
       console.error('Error fetching market prices:', error)
-      throw error
+      // Trả về mảng rỗng thay vì throw lỗi để tránh sập giao diện
+      return [];
     }
   },
 
   /**
-   * Lấy xu hướng thị trường
+   * Lấy xu hướng thị trường (Cho biểu đồ)
    */
   async getMarketTrends(): Promise<MarketDataResponse> {
     try {
-      return await apiClient.get<MarketDataResponse>(API_ENDPOINTS.MARKET.TRENDS)
+      const response = await apiClient.get<any>(API_ENDPOINTS.MARKET.TRENDS);
+      return response;
     } catch (error) {
       console.error('Error fetching market trends:', error)
-      throw error
+      return {};
     }
   },
 }
-

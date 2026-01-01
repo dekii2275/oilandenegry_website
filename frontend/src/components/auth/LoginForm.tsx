@@ -68,6 +68,9 @@ export default function LoginForm() {
 
         toast.success(`Đăng nhập thành công!`);
         localStorage.setItem("access_token", token);
+        localStorage.setItem("zenergy_token", token); // thêm dòng này
+        localStorage.setItem("token", token);         // thêm dòng này (để tương thích các chỗ cũ)
+
 
 
         // 5. Chuyển hướng theo Role

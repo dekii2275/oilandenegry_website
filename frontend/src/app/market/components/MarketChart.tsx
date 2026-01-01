@@ -45,40 +45,50 @@ export default function MarketChart() {
     });
   };
 
-  useEffect(() => {
+  // --- FILE: src/app/market/components/MarketChart.tsx ---
+
+useEffect(() => {
     const fetchHistory = async () => {
       setLoading(true);
       setError(null);
       setHoveredPrice(null);
       
       try {
+        // ✅ CẬP NHẬT: Trỏ đúng vào thư mục node-api như cấu trúc file của bạn
         const res = await fetch(
           `/node-api/market-proxy?symbol=${selectedCategory.symbol}&range=${selectedRange.value}`
         );
 
-        if (!res.ok) throw new Error("Lỗi kết nối");
-        const rawData = await res.json();
-
-        if (!Array.isArray(rawData) || rawData.length === 0) {
-          throw new Error("Không có dữ liệu");
+        if (!res.ok) {
+          const errorData = await res.json();
+          throw new Error(errorData.error || "Lỗi kết nối server");
         }
 
+        const rawData = await res.json();
+
+        // Kiểm tra dữ liệu mảng trả về từ yahoo-finance2 (route.ts trả về { date, price, ... })
+        if (!Array.isArray(rawData) || rawData.length === 0) {
+          throw new Error("Không có dữ liệu cho mã này");
+        }
+
+        // Map lại dữ liệu: route.ts của bạn đang trả về field 'date' và 'price'
         const formattedData = rawData.map((item: any) => ({
-          rawDate: item.date,
-          price: item.price ? Number(item.price.toFixed(2)) : 0,
+          rawDate: item.date, // Khớp với field 'date' trong route.ts
+          price: item.price ? Number(item.price.toFixed(2)) : 0, // Khớp với field 'price'
         }));
 
         setChartData(formattedData);
       } catch (err: any) {
+        console.error("Chart Error:", err.message);
         setChartData([]);
-        setError("Chưa có dữ liệu");
+        setError(err.message === "Lỗi kết nối server" ? "Chưa có dữ liệu" : err.message);
       } finally {
         setLoading(false);
       }
     };
 
     fetchHistory();
-  }, [selectedCategory, selectedRange]);
+}, [selectedCategory, selectedRange]);
 
   const handleMouseMove = (state: any) => {
     if (state && state.activePayload) {

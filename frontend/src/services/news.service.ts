@@ -1,10 +1,41 @@
-/**
- * News Service
- */
+// --- FILE: src/services/news.service.ts ---
 
 import { apiClient } from '@/lib/api-client'
 import { API_ENDPOINTS } from '@/lib/api'
 import type { NewsItem, NewsListParams, NewsListResponse } from '@/types/news'
+
+// 👇 HÀM MAP DỮ LIỆU: Chuyển Backend (snake_case) -> Frontend (camelCase)
+const mapNewsItem = (item: any): NewsItem => {
+  // Xử lý tags: Backend trả về chuỗi "xăng,dầu", ta chuyển thành mảng ["xăng", "dầu"]
+  let tagsArray: string[] = [];
+  if (item.tags && typeof item.tags === 'string') {
+    tagsArray = item.tags.split(',').map((t: string) => t.trim()).filter((t: string) => t);
+  } else if (Array.isArray(item.tags)) {
+    tagsArray = item.tags;
+  }
+
+  return {
+    id: item.id,
+    slug: item.slug,
+    originalUrl: item.original_url || item.originalUrl, // Map link gốc
+
+    title: item.title,
+    summary: item.summary,
+    content: item.content,
+    imageUrl: item.image_url || item.imageUrl || '/assets/images/placeholder.png', // Map ảnh
+
+    category: item.category || 'Tin tức chung',
+    tags: tagsArray, // ✅ Đã xử lý thành mảng, Component không lo lỗi nữa
+    author: item.author || 'Ban biên tập',
+    source: item.source || 'Tổng hợp',
+
+    views: item.views || 0,
+    isPublished: item.is_published !== undefined ? item.is_published : true,
+    
+    publishedAt: item.published_at || item.publishedAt, // Map ngày đăng
+    createdAt: item.created_at || item.createdAt,
+  };
+};
 
 export const newsService = {
   /**
@@ -23,18 +54,32 @@ export const newsService = {
       }
 
       const queryString = queryParams.toString()
-      const endpoint = queryString 
-        ? `${API_ENDPOINTS.NEWS.LIST}?${queryString}`
-        : API_ENDPOINTS.NEWS.LIST
+      let baseUrl = API_ENDPOINTS.NEWS.LIST;
+      if (!baseUrl.endsWith('/')) baseUrl += '/';
+      
+      const endpoint = queryString ? `${baseUrl}?${queryString}` : baseUrl;
 
-      const response = await apiClient.get<NewsListResponse | NewsItem[]>(endpoint)
+      // Gọi API (Kiểu trả về là any để chúng ta tự map)
+      const response = await apiClient.get<any>(endpoint)
       
-      // Hỗ trợ cả array response và object response
+      let rawList: any[] = [];
+      let total = 0;
+
       if (Array.isArray(response)) {
-        return { data: response }
+        rawList = response;
+        total = response.length;
+      } else if (response && Array.isArray(response.data)) {
+        rawList = response.data;
+        total = response.total || rawList.length;
       }
-      
-      return response
+
+      // Map toàn bộ danh sách
+      const mappedData = rawList.map(mapNewsItem);
+
+      return { 
+        data: mappedData,
+        total: total
+      }
     } catch (error) {
       console.error('Error fetching news:', error)
       throw error
@@ -59,11 +104,11 @@ export const newsService = {
    */
   async getNewsById(id: number | string): Promise<NewsItem> {
     try {
-      return await apiClient.get<NewsItem>(API_ENDPOINTS.NEWS.DETAIL(id.toString()))
+      const response = await apiClient.get<any>(API_ENDPOINTS.NEWS.DETAIL(id.toString()));
+      return mapNewsItem(response); // Map chi tiết
     } catch (error) {
       console.error(`Error fetching news ${id}:`, error)
       throw error
     }
   },
 }
-

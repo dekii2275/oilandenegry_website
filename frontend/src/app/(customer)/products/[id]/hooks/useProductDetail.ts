@@ -19,6 +19,12 @@ import {
 
 import { useAuth } from "@/app/providers/AuthProvider";
 
+const getToken = () =>
+  localStorage.getItem("zenergy_token") ||
+  localStorage.getItem("access_token") ||
+  localStorage.getItem("token") ||
+  "";
+
 
 export const useProductDetail = (productId: string) => {
   const router = useRouter();
@@ -45,7 +51,7 @@ export const useProductDetail = (productId: string) => {
     const fetchProductDetail = async () => {
       try {
         setLoading(true);
-        const baseUrl = process.env.NEXT_PUBLIC_API_URL;
+        const baseUrl = process.env.NEXT_PUBLIC_API_URL?.trim() || "/api";
         
         if (!baseUrl) {
             console.error("Thiếu biến môi trường NEXT_PUBLIC_API_URL");
@@ -136,42 +142,47 @@ export const useProductDetail = (productId: string) => {
 
   // Hàm kiểm tra đăng nhập
   const checkAuthAndRedirect = (actionType: "buy-now" | "add-to-cart") => {
-    if (!isAuthenticated) {
-      // Lưu thông tin sản phẩm và hành động vào sessionStorage để sau khi login có thể tiếp tục
-      if (typeof window !== "undefined" && product) {
-        sessionStorage.setItem(
-          "pendingAction",
-          JSON.stringify({
-            type: actionType,
-            product: {
-              id: product.id,
-              name: product.name,
-              price: product.price,
-              quantity: quantity,
-            },
-            redirectUrl: window.location.href,
-          })
-        );
-      }
+  const token = getToken();
 
-      // Hiển thị thông báo yêu cầu đăng nhập
-      if (typeof window !== "undefined") {
-        toast.error("Vui lòng đăng nhập để tiếp tục mua hàng!", {
-          duration: 4000,
-          icon: "🔒",
-        });
-      }
-
-      // Redirect đến trang đăng nhập với callback URL
-      if (typeof window !== "undefined") {
-        router.push(
-          `/login?redirect=${encodeURIComponent(window.location.href)}`
-        );
-      }
-      return false;
+  if (!token) {
+    // Lưu thông tin sản phẩm và hành động vào sessionStorage để sau khi login có thể tiếp tục
+    if (typeof window !== "undefined" && product) {
+      sessionStorage.setItem(
+        "pendingAction",
+        JSON.stringify({
+          type: actionType,
+          product: {
+            id: product.id,
+            name: product.name,
+            price: product.price,
+            quantity: quantity,
+            // thêm nếu bạn có biến selectedVariant
+            // variantId: selectedVariant?.id,
+          },
+          redirectUrl: window.location.href,
+        })
+      );
     }
-    return true;
-  };
+
+    // Hiển thị thông báo yêu cầu đăng nhập
+    if (typeof window !== "undefined") {
+      toast.error("Vui lòng đăng nhập để tiếp tục mua hàng!", {
+        duration: 4000,
+        icon: "🔒",
+      });
+    }
+
+    // Redirect đến trang đăng nhập với callback URL
+    if (typeof window !== "undefined") {
+      router.push(`/login?redirect=${encodeURIComponent(window.location.href)}`);
+    }
+
+    return false;
+  }
+
+  return true;
+};
+
 
   // ============================================================================
   // 🔴 BACKEND API CẦN HỖ TRỢ: POST /api/quotes/request
@@ -338,7 +349,11 @@ export const useProductDetail = (productId: string) => {
     try {
       const baseUrl =
         process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-      const token = localStorage.getItem("token");
+      const token =
+  localStorage.getItem("zenergy_token") ||
+  localStorage.getItem("access_token") ||
+  localStorage.getItem("token");
+
 
       if (!token) {
         alert("Vui lòng đăng nhập để thêm vào yêu thích");

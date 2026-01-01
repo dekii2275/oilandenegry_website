@@ -54,9 +54,7 @@ export function useProductsData() {
     const fetchData = async () => {
       try {
         setLoading(true);
-        const baseUrl = process.env.NEXT_PUBLIC_API_URL; 
-        
-        if (!baseUrl) throw new Error("Chưa cấu hình API URL");
+        const baseUrl = process.env.NEXT_PUBLIC_API_URL?.trim() || "/api";
 
         // CHỈ GỌI API PRODUCTS (Bỏ categories/stores tạm thời để tránh 404)
         const prodRes = await fetch(`${baseUrl}/products/`);
@@ -71,7 +69,7 @@ export function useProductsData() {
         const mappedProducts = (Array.isArray(prodData) ? prodData : []).map((p: any) => ({
             id: p.id,
             name: p.name,
-            brand: p.store_name || "No Brand", // Backend trả về store_name
+            brand: p.brand || "No Brand", // Backend trả về store_name
             status: p.is_active ? "CÓ SẴN" : "HẾT HÀNG", 
             category: p.category, 
             description: p.description,
