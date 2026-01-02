@@ -86,6 +86,25 @@ export function useOrders() {
           // Lấy toàn bộ mock data
           let result = [...ALL_MOCK_ORDERS];
 
+          // Merge với đơn hàng từ localStorage
+          try {
+            const localOrders = JSON.parse(
+              localStorage.getItem("zenergy_my_orders") || "[]"
+            );
+            if (Array.isArray(localOrders) && localOrders.length > 0) {
+              // Merge và loại bỏ duplicate dựa trên order_number
+              const existingOrderNumbers = new Set(
+                result.map((o) => o.order_number)
+              );
+              const newLocalOrders = localOrders.filter(
+                (o: Order) => !existingOrderNumbers.has(o.order_number)
+              );
+              result = [...result, ...newLocalOrders];
+            }
+          } catch (error) {
+            console.error("Error loading local orders:", error);
+          }
+
           // QUAN TRỌNG: Filter theo activeTab
           console.log("Filtering by activeTab:", activeTab);
           if (activeTab !== "all") {
@@ -256,20 +275,21 @@ export function useOrders() {
   // ==================== API CALL: Tải hóa đơn ====================
   const handleDownloadInvoice = async (orderId: string) => {
     try {
+      // Check localStorage first
+      const localOrders = JSON.parse(
+        localStorage.getItem("zenergy_orders") || "[]"
+      );
+      const foundOrder = localOrders.find((o: any) => o.orderId === orderId);
+
+      if (foundOrder) {
+        // Redirect to invoice page for download
+        window.location.href = `/profile/orders/invoice/${orderId}?download=true`;
+        return;
+      }
+
       if (useMockData) {
-        alert(`Tải hóa đơn cho đơn hàng ${orderId} (Mock Data)`);
-        const blob = new Blob(
-          [`Hóa đơn ${orderId}\nNgày: ${new Date().toLocaleDateString()}`],
-          { type: "text/plain" }
-        );
-        const url = window.URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = `invoice-${orderId}.txt`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        window.URL.revokeObjectURL(url);
+        // Redirect to invoice page
+        window.location.href = `/profile/orders/invoice/${orderId}?download=true`;
         return;
       }
 
@@ -281,15 +301,29 @@ export function useOrders() {
       }
     } catch (err: any) {
       console.error("Error downloading invoice:", err);
-      alert("Có lỗi xảy ra khi tải hóa đơn");
+      // Fallback: redirect to invoice page
+      window.location.href = `/profile/orders/invoice/${orderId}?download=true`;
     }
   };
 
   // ==================== API CALL: Xem chi tiết đơn hàng ====================
   const handleViewOrder = async (orderId: string) => {
     try {
+      // Check localStorage first
+      const localOrders = JSON.parse(
+        localStorage.getItem("zenergy_orders") || "[]"
+      );
+      const foundOrder = localOrders.find((o: any) => o.orderId === orderId);
+
+      if (foundOrder) {
+        // Redirect to invoice page
+        window.location.href = `/profile/orders/invoice/${orderId}`;
+        return;
+      }
+
       if (useMockData) {
-        alert(`Xem chi tiết đơn hàng ${orderId} (Mock Data)`);
+        // For mock data, still redirect to invoice page
+        window.location.href = `/profile/orders/invoice/${orderId}`;
         return;
       }
 
@@ -297,13 +331,14 @@ export function useOrders() {
       const result = await apiClient.getOrderById(orderId);
 
       if (result.success && result.data) {
-        window.location.href = `/orders/${orderId}`;
+        window.location.href = `/profile/orders/invoice/${orderId}`;
       } else {
         alert(result.message || "Không thể xem chi tiết đơn hàng");
       }
     } catch (err: any) {
       console.error("Error viewing order:", err);
-      alert("Có lỗi xảy ra khi xem chi tiết đơn hàng");
+      // Fallback: redirect to invoice page anyway
+      window.location.href = `/profile/orders/invoice/${orderId}`;
     }
   };
 

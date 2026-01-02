@@ -55,6 +55,7 @@ export default function OrderConfirmationPage() {
   const router = useRouter();
   const [order, setOrder] = useState<OrderData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [showInvoice, setShowInvoice] = useState(false);
 
   useEffect(() => {
     const orderId = searchParams.get("orderId");
@@ -79,6 +80,18 @@ export default function OrderConfirmationPage() {
     }
 
     setOrder(foundOrder);
+
+    // Check if should show invoice
+    const shouldShowInvoice = searchParams.get("showInvoice") === "true";
+    setShowInvoice(shouldShowInvoice);
+
+    // Auto redirect to invoice page if showInvoice is true
+    if (shouldShowInvoice && foundOrder) {
+      setTimeout(() => {
+        router.push(`/profile/orders/invoice/${foundOrder.orderId}`);
+      }, 2000); // Show success message for 2 seconds then redirect
+    }
+
     setIsLoading(false);
   }, [searchParams, router]);
 
@@ -98,11 +111,17 @@ export default function OrderConfirmationPage() {
   };
 
   const handleDownloadInvoice = () => {
-    toast.success("Hóa đơn đang được tải xuống...", {
-      icon: "📄",
-      duration: 3000,
-    });
-    // In thực tế, bạn sẽ tạo và tải xuống file PDF
+    if (!order) return;
+
+    // Redirect to invoice page
+    router.push(`/profile/orders/invoice/${order.orderId}`);
+  };
+
+  const handleViewInvoice = () => {
+    if (!order) return;
+
+    // Redirect to invoice page
+    router.push(`/profile/orders/invoice/${order.orderId}`);
   };
 
   if (isLoading) {
@@ -420,6 +439,14 @@ export default function OrderConfirmationPage() {
                 Tiếp theo bạn muốn làm gì?
               </h2>
               <div className="space-y-3">
+                <button
+                  onClick={handleViewInvoice}
+                  className="w-full flex items-center justify-center gap-3 bg-green-600 text-white font-bold py-3 rounded-xl hover:bg-green-700 transition-colors"
+                >
+                  <Download size={18} />
+                  Xem hóa đơn
+                </button>
+
                 <button
                   onClick={handleDownloadInvoice}
                   className="w-full flex items-center justify-center gap-3 bg-green-50 text-green-700 font-bold py-3 rounded-xl hover:bg-green-100 transition-colors"

@@ -111,10 +111,6 @@ export default function ProductDetailPage() {
               Sản phẩm nổi bật
             </Link>
             <ChevronRight className="w-4 h-4 mx-2" />
-            <Link href="/products" className="hover:text-green-600">
-              Năng lượng tái tạo
-            </Link>
-            <ChevronRight className="w-4 h-4 mx-2" />
             <span className="text-gray-900 line-clamp-1">{product.name}</span>
           </div>
         </div>

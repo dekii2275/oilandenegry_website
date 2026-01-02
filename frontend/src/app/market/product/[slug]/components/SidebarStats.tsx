@@ -17,7 +17,7 @@ import {
   TrendingDown,
 } from "lucide-react";
 import Link from "next/link";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Product } from "../types";
 import { useAuth } from "@/app/providers/AuthProvider";
 import { toast } from "react-hot-toast";
@@ -39,7 +39,7 @@ export default function SidebarStats({ product }: SidebarStatsProps) {
   const router = useRouter();
 
   // Kiểm tra xem sản phẩm đã được theo dõi chưa
-  useEffect(() => {
+  const checkWatchStatus = useCallback(() => {
     if (product.id && isAuthenticated) {
       const watchedProducts = JSON.parse(
         localStorage.getItem("zenergy_watched_products") || "[]"
@@ -50,6 +50,22 @@ export default function SidebarStats({ product }: SidebarStatsProps) {
       setIsWatching(isProductWatched);
     }
   }, [product.id, isAuthenticated]);
+
+  useEffect(() => {
+    checkWatchStatus();
+  }, [checkWatchStatus]);
+
+  // Lắng nghe event từ ProductDetailHeader để đồng bộ trạng thái
+  useEffect(() => {
+    const handleWatchlistUpdate = () => {
+      checkWatchStatus();
+    };
+
+    window.addEventListener("watchlist-updated", handleWatchlistUpdate);
+    return () => {
+      window.removeEventListener("watchlist-updated", handleWatchlistUpdate);
+    };
+  }, [checkWatchStatus]);
 
   if (!product.marketDetails || !product.relatedProducts) return null;
 

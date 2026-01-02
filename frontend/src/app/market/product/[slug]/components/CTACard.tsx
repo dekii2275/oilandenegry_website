@@ -58,7 +58,7 @@ export default function CTACard({ product }: CTACardProps) {
     return true;
   };
 
-  // Xử lý yêu cầu báo giá
+  // Xử lý yêu cầu báo giá - scroll về đầu trang
   const handleRequestQuote = async () => {
     if (!checkAuthAndAction("quote", () => {})) return;
 
@@ -82,10 +82,10 @@ export default function CTACard({ product }: CTACardProps) {
         })
       );
 
-      // Chuyển đến trang yêu cầu báo giá
-      router.push(`/quote/request?product=${product.slug}`);
+      // Scroll về đầu trang
+      window.scrollTo({ top: 0, behavior: "smooth" });
 
-      toast.success("Chuyển đến trang yêu cầu báo giá!", {
+      toast.success("Đã cuộn về đầu trang!", {
         duration: 2000,
         icon: "📋",
       });
@@ -99,14 +99,14 @@ export default function CTACard({ product }: CTACardProps) {
     }
   };
 
-  // Xử lý tư vấn chuyên gia
+  // Xử lý tư vấn chuyên gia - chuyển đến trang contact
   const handleExpertConsultation = async () => {
     if (!checkAuthAndAction("consultation", () => {})) return;
 
     setIsLoading((prev) => ({ ...prev, consultation: true }));
 
     try {
-      // Lưu thông tin sản phẩm vào sessionStorage để sử dụng ở trang tư vấn
+      // Lưu thông tin sản phẩm vào sessionStorage để sử dụng ở trang contact
       sessionStorage.setItem(
         "consultationProduct",
         JSON.stringify({
@@ -117,15 +117,15 @@ export default function CTACard({ product }: CTACardProps) {
         })
       );
 
-      // Chuyển đến trang đặt lịch tư vấn
-      router.push(`/consultation/book?product=${product.slug}`);
+      // Chuyển đến trang contact
+      router.push(`/contact?product=${product.slug}`);
 
-      toast.success("Chuyển đến trang đặt lịch tư vấn!", {
+      toast.success("Chuyển đến trang liên hệ!", {
         duration: 2000,
         icon: "👨‍💼",
       });
     } catch (error) {
-      console.error("Lỗi khi đặt lịch tư vấn:", error);
+      console.error("Lỗi khi chuyển đến trang liên hệ:", error);
       toast.error("Có lỗi xảy ra!", {
         duration: 4000,
       });

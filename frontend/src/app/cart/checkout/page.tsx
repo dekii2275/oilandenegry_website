@@ -61,6 +61,24 @@ export default function CheckoutPage() {
 
     try {
       const parsedData = JSON.parse(data);
+
+      // Kiểm tra lại xem đây có phải là đơn hàng đầu tiên không
+      const existingOrders = JSON.parse(
+        localStorage.getItem("zenergy_orders") || "[]"
+      );
+      const isFirstOrder = existingOrders.length === 0;
+
+      // Cập nhật lại thông tin giảm giá nếu cần
+      if (isFirstOrder && parsedData.baseShippingFee) {
+        const shippingDiscount = parsedData.baseShippingFee * 0.2;
+        parsedData.shippingFee = Math.max(
+          0,
+          parsedData.baseShippingFee - shippingDiscount
+        );
+        parsedData.shippingDiscount = shippingDiscount;
+        parsedData.isFirstOrder = true;
+      }
+
       setCheckoutData(parsedData);
 
       // Load saved customer info if exists
@@ -130,11 +148,34 @@ export default function CheckoutPage() {
         JSON.stringify(customerInfo)
       );
 
-      // Create order data
+      // Create order ID
+      const orderId = `ZNRG-${Date.now()}-${Math.random()
+        .toString(36)
+        .substr(2, 9)}`;
+      const orderNumber = `#ORD-${new Date().getFullYear()}-${String(
+        Date.now()
+      ).slice(-6)}`;
+
+      // Format date for Order type (dd/mm/yyyy)
+      const formatDate = (date: Date) => {
+        const day = String(date.getDate()).padStart(2, "0");
+        const month = String(date.getMonth() + 1).padStart(2, "0");
+        const year = date.getFullYear();
+        return `${day}/${month}/${year}`;
+      };
+
+      // Create items string for Order type
+      const itemsString = checkoutData.items
+        .map(
+          (item: CheckoutItem) =>
+            `${item.name} (${item.quantity} ${item.unit || "cái"})`
+        )
+        .join(", ");
+
+      // Create order data with full details
       const orderData = {
-        orderId: `ZNRG-${Date.now()}-${Math.random()
-          .toString(36)
-          .substr(2, 9)}`,
+        orderId,
+        order_number: orderNumber,
         customer: customerInfo,
         items: checkoutData.items,
         paymentMethod,
@@ -146,12 +187,33 @@ export default function CheckoutPage() {
         status: "pending",
       };
 
+      // Create Order format for MyOrders component
+      const orderForMyOrders = {
+        id: orderId,
+        order_number: orderNumber,
+        created_at: formatDate(new Date()),
+        status: "pending" as const,
+        total_amount: Math.round(checkoutData.total * 24000), // Convert to VND
+        items: itemsString,
+        payment_status: paymentMethod === "cod" ? "pending" : "paid",
+      };
+
       // Save order to localStorage (simulating API call)
       const existingOrders = JSON.parse(
         localStorage.getItem("zenergy_orders") || "[]"
       );
       existingOrders.push(orderData);
       localStorage.setItem("zenergy_orders", JSON.stringify(existingOrders));
+
+      // Save order in MyOrders format
+      const existingMyOrders = JSON.parse(
+        localStorage.getItem("zenergy_my_orders") || "[]"
+      );
+      existingMyOrders.push(orderForMyOrders);
+      localStorage.setItem(
+        "zenergy_my_orders",
+        JSON.stringify(existingMyOrders)
+      );
 
       // Clear cart and checkout data
       localStorage.removeItem("zenergy_cart");
@@ -175,9 +237,11 @@ export default function CheckoutPage() {
         }
       );
 
-      // Redirect to confirmation page
+      // Redirect to confirmation page with invoice
       setTimeout(() => {
-        router.push(`/cart/order-confirmation?orderId=${orderData.orderId}`);
+        router.push(
+          `/cart/order-confirmation?orderId=${orderData.orderId}&showInvoice=true`
+        );
       }, 2000);
     } catch (error) {
       console.error("Error placing order:", error);
@@ -441,10 +505,34 @@ export default function CheckoutPage() {
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-600">Phí vận chuyển</span>
-                  <span className="font-bold text-gray-800">
-                    ${checkoutData.shippingFee.toFixed(2)}
-                  </span>
+                  <div className="flex flex-col">
+                    <span className="text-gray-600">Phí vận chuyển</span>
+                    {checkoutData.isFirstOrder &&
+                      checkoutData.shippingDiscount > 0 && (
+                        <span className="text-xs text-green-600 font-medium mt-1">
+                          🎉 Giảm 20% cho đơn hàng đầu tiên!
+                        </span>
+                      )}
+                  </div>
+                  <div className="text-right">
+                    {checkoutData.isFirstOrder &&
+                    checkoutData.shippingDiscount > 0 ? (
+                      <div>
+                        <span className="text-sm text-gray-400 line-through mr-2">
+                          $
+                          {checkoutData.baseShippingFee?.toFixed(2) ||
+                            checkoutData.shippingFee.toFixed(2)}
+                        </span>
+                        <span className="font-bold text-gray-800">
+                          ${checkoutData.shippingFee.toFixed(2)}
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="font-bold text-gray-800">
+                        ${checkoutData.shippingFee.toFixed(2)}
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600">Thuế (VAT 10%)</span>

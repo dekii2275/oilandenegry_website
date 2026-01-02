@@ -2,7 +2,7 @@
 
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import {
   Home,
@@ -70,7 +70,7 @@ export default function ProductDetailHeader({
   };
 
   // Kiểm tra xem sản phẩm đã được theo dõi chưa
-  useEffect(() => {
+  const checkWatchStatus = useCallback(() => {
     if (mounted && productId && isAuthenticated) {
       const watchedProducts = JSON.parse(
         localStorage.getItem("zenergy_watched_products") || "[]"
@@ -81,6 +81,22 @@ export default function ProductDetailHeader({
       setIsWatching(isProductWatched);
     }
   }, [mounted, productId, isAuthenticated]);
+
+  useEffect(() => {
+    checkWatchStatus();
+  }, [checkWatchStatus]);
+
+  // Lắng nghe event từ SidebarStats để đồng bộ trạng thái
+  useEffect(() => {
+    const handleWatchlistUpdate = () => {
+      checkWatchStatus();
+    };
+
+    window.addEventListener("watchlist-updated", handleWatchlistUpdate);
+    return () => {
+      window.removeEventListener("watchlist-updated", handleWatchlistUpdate);
+    };
+  }, [checkWatchStatus]);
 
   const handleWatchProduct = () => {
     if (!isAuthenticated) {

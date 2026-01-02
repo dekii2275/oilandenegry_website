@@ -1,29 +1,32 @@
-'use client'
+"use client";
 
-import { useState } from 'react'
+import { useState } from "react";
+import Link from "next/link";
 
 export default function VerifiedSuppliers() {
-  const [index, setIndex] = useState(0)
+  const [index, setIndex] = useState(0);
 
   const suppliers = [
-    { id: 1, name: 'Apex Energy', rating: 4.9, reviews: 120 },
-    { id: 2, name: 'SolarWorld', rating: 4.8, reviews: 85 },
-    { id: 3, name: 'PetroChem', rating: 4.7, reviews: 210 },
-    { id: 4, name: 'Eco Transport', rating: 4.9, reviews: 56 },
-    { id: 5, name: 'Global Gas', rating: 4.6, reviews: 92 },
-  ]
+    { id: 1, name: "Apex Energy", rating: 4.9, reviews: 120 },
+    { id: 2, name: "SolarWorld", rating: 4.8, reviews: 85 },
+    { id: 3, name: "PetroChem", rating: 4.7, reviews: 210 },
+    { id: 4, name: "Eco Transport", rating: 4.9, reviews: 56 },
+    { id: 5, name: "Global Gas", rating: 4.6, reviews: 92 },
+  ];
 
-  const visible = suppliers.slice(index, index + 5)
+  const visible = suppliers.slice(index, index + 5);
 
   const prev = () => {
-    setIndex((prev) => (prev === 0 ? 0 : prev - 1))
-  }
+    setIndex((prev) => (prev === 0 ? 0 : prev - 1));
+  };
 
   const next = () => {
-    setIndex((prev) =>
-      prev + 5 < suppliers.length ? prev + 1 : prev
-    )
-  }
+    setIndex((prev) => (prev + 5 < suppliers.length ? prev + 1 : prev));
+  };
+
+  const getSupplierSlug = (name: string) => {
+    return name.toLowerCase().replace(/\s+/g, "-");
+  };
 
   return (
     <section className="py-16 bg-white">
@@ -53,16 +56,17 @@ export default function VerifiedSuppliers() {
         {/* Suppliers */}
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-6">
           {visible.map((s) => (
-            <div
+            <Link
               key={s.id}
-              className="bg-white rounded-2xl p-6 text-center shadow-sm hover:shadow-md transition cursor-pointer"
+              href={`/suppliers/${getSupplierSlug(s.name)}`}
+              className="bg-white rounded-2xl p-6 text-center shadow-sm hover:shadow-md transition cursor-pointer group"
             >
               {/* LOGO SLOT */}
-              <div className="w-20 h-20 rounded-full bg-gray-100 mx-auto mb-4 flex items-center justify-center">
+              <div className="w-20 h-20 rounded-full bg-gray-100 mx-auto mb-4 flex items-center justify-center group-hover:bg-green-50 transition-colors">
                 {/* 👉 Bạn gắn logo <img /> hoặc SVG vào đây */}
               </div>
 
-              <h3 className="font-semibold text-gray-900 text-sm mb-2">
+              <h3 className="font-semibold text-gray-900 text-sm mb-2 group-hover:text-green-600 transition-colors">
                 {s.name}
               </h3>
 
@@ -71,10 +75,10 @@ export default function VerifiedSuppliers() {
                 <span className="font-medium">{s.rating}</span>
                 <span className="text-gray-400">({s.reviews})</span>
               </div>
-            </div>
+            </Link>
           ))}
         </div>
       </div>
     </section>
-  )
+  );
 }

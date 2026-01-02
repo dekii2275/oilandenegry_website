@@ -148,13 +148,27 @@ export default function CartPage() {
     });
   };
 
+  // Kiểm tra xem đây có phải là đơn hàng đầu tiên không
+  const isFirstOrder = () => {
+    const existingOrders = JSON.parse(
+      localStorage.getItem("zenergy_orders") || "[]"
+    );
+    return existingOrders.length === 0;
+  };
+
   // Tính tổng
   const totalItems = cartItems.reduce((sum, item) => sum + item.quantity, 0);
   const subtotal = cartItems.reduce(
     (sum, item) => sum + item.price * item.quantity,
     0
   );
-  const shippingFee = totalItems > 0 ? 50 : 0;
+
+  // Tính phí vận chuyển với giảm giá 20% cho đơn hàng đầu tiên
+  const baseShippingFee = totalItems > 0 ? 50 : 0;
+  const firstOrderDiscount = isFirstOrder() ? baseShippingFee * 0.2 : 0;
+  const shippingFee = Math.max(0, baseShippingFee - firstOrderDiscount);
+  const shippingDiscount = firstOrderDiscount;
+
   const tax = subtotal * 0.1;
   const total = subtotal + shippingFee + tax;
 
@@ -173,6 +187,9 @@ export default function CartPage() {
       items: cartItems,
       subtotal,
       shippingFee,
+      shippingDiscount,
+      baseShippingFee,
+      isFirstOrder: isFirstOrder(),
       tax,
       total,
       createdAt: new Date().toISOString(),
@@ -413,6 +430,26 @@ export default function CartPage() {
 
           {/* Right Column - Order Summary */}
           <div className="lg:w-1/3">
+            {/* First Order Discount Banner */}
+            {isFirstOrder() && cartItems.length > 0 && (
+              <div className="bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-200 rounded-3xl p-4 mb-6">
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0">
+                    <span className="text-xl">🎉</span>
+                  </div>
+                  <div className="flex-1">
+                    <h4 className="font-bold text-green-800 mb-1">
+                      Ưu đãi đặc biệt!
+                    </h4>
+                    <p className="text-sm text-green-700">
+                      Bạn được giảm <span className="font-black">20%</span> phí
+                      vận chuyển cho đơn hàng đầu tiên!
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div className="bg-white rounded-3xl p-6 shadow-lg border border-gray-100 sticky top-6">
               <h3 className="text-lg font-bold text-gray-800 mb-6 flex items-center gap-2">
                 <CreditCard size={20} className="text-green-600" />
@@ -433,12 +470,32 @@ export default function CartPage() {
                   </span>
                 </div>
                 <div className="flex justify-between items-center py-2">
-                  <span className="text-gray-600">Phí vận chuyển</span>
-                  <span className="font-bold text-gray-800">
-                    {shippingFee > 0
-                      ? `$${shippingFee.toFixed(2)}`
-                      : "Miễn phí"}
-                  </span>
+                  <div className="flex flex-col">
+                    <span className="text-gray-600">Phí vận chuyển</span>
+                    {isFirstOrder() && shippingDiscount > 0 && (
+                      <span className="text-xs text-green-600 font-medium">
+                        🎉 Giảm 20% cho đơn hàng đầu tiên!
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-right">
+                    {isFirstOrder() && shippingDiscount > 0 ? (
+                      <div>
+                        <span className="text-sm text-gray-400 line-through mr-2">
+                          ${baseShippingFee.toFixed(2)}
+                        </span>
+                        <span className="font-bold text-gray-800">
+                          ${shippingFee.toFixed(2)}
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="font-bold text-gray-800">
+                        {shippingFee > 0
+                          ? `$${shippingFee.toFixed(2)}`
+                          : "Miễn phí"}
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <div className="flex justify-between items-center py-2">
                   <span className="text-gray-600">Thuế (VAT 10%)</span>
