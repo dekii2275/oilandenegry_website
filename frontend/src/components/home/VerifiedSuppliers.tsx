@@ -63,7 +63,7 @@ export default function VerifiedSuppliers() {
             >
               {/* LOGO SLOT */}
               <div className="w-20 h-20 rounded-full bg-gray-100 mx-auto mb-4 flex items-center justify-center group-hover:bg-green-50 transition-colors">
-                {/* 👉 Bạn gắn logo <img /> hoặc SVG vào đây */}
+                {/* gắn logo <img /> hoặc SVG vào đây */}
               </div>
 
               <h3 className="font-semibold text-gray-900 text-sm mb-2 group-hover:text-green-600 transition-colors">
