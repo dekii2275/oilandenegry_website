@@ -28,7 +28,6 @@ export default function NewProductPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   
-  // State riêng để quản lý việc checkbox kho hàng có được bật hay không
   const [isStockManaged, setIsStockManaged] = useState(false);
 
   const [form, setForm] = useState<CreateProductFormState>({
@@ -51,11 +50,8 @@ export default function NewProductPage() {
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
   ) => {
     const { name, value, type } = e.target;
-    
-    // Xử lý riêng cho input số để tránh lỗi số 0 ở đầu
     let newValue: any = value;
     if (type === "number") {
-      // Nếu xóa hết thì để 0, ngược lại parse sang số
       newValue = value === "" ? 0 : Number(value);
     }
 
@@ -68,7 +64,6 @@ export default function NewProductPage() {
   const handleStockCheckbox = (e: React.ChangeEvent<HTMLInputElement>) => {
     const checked = e.target.checked;
     setIsStockManaged(checked);
-    // Nếu bật quản lý kho -> set mặc định 10, tắt -> set về 0
     setForm(prev => ({ ...prev, stock: checked ? 10 : 0 }));
   };
 
@@ -128,7 +123,7 @@ export default function NewProductPage() {
       // BƯỚC 1: UPLOAD ẢNH
       const imageUrls = await Promise.all(form.images.map(uploadImageToBackend));
 
-      // BƯỚC 2: TẠO PRODUCT
+      // BƯỚC 2: TẠO PRODUCT (Gộp tất cả Price, Stock vào Payload này)
       const productPayload = {
         name: form.name,
         description: form.description,
@@ -137,11 +132,16 @@ export default function NewProductPage() {
         origin: "Vietnam",
         warranty: "12 Tháng",
         unit: form.unit,
-        image_url: imageUrls[0],
-        images: imageUrls,
+        image_url: imageUrls[0], // Ảnh Thumbnail
+        images: imageUrls,        // Danh sách ảnh Gallery cho bảng phụ
         is_active: true,
         tags: ["NEW"],
-        specifications: {}
+        specifications: {},
+        // ✅ CÁC TRƯỜNG MỚI KHÔNG DÙNG VARIANT NỮA
+        price: form.price,
+        market_price: form.salePrice > 0 ? form.salePrice : null,
+        stock: form.stock,
+        sku: `PROD-${Date.now()}` 
       };
 
       const productRes = await fetch(`${API_BASE_URL}/seller/products`, {
@@ -158,44 +158,19 @@ export default function NewProductPage() {
       
       const newProduct = await productRes.json();
 
-      // BƯỚC 3: TẠO VARIANT (GIÁ & KHO)
-      const variantPayload = {
-        name: "Tiêu chuẩn",
-        price: form.price,
-        market_price: form.salePrice > 0 ? form.salePrice : null,
-        stock: form.stock,
-        sku: `PROD-${newProduct.id}-${Date.now()}`,
-        is_active: true
-      };
+      // ✅ BƯỚC 3: ĐÃ XÓA (Không cần gọi API Variant nữa)
 
-      const variantRes = await fetch(`${API_BASE_URL}/seller/products/${newProduct.id}/variants`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify(variantPayload),
-      });
-
-      if (!variantRes.ok) {
-         const errorData = await variantRes.json().catch(() => ({}));
-         throw new Error(errorData.detail || "Lỗi cập nhật giá/kho");
-      }
-
-      // THÀNH CÔNG
       alert(`🎉 Đăng sản phẩm "${newProduct.name}" thành công!`);
       router.push("/seller/products");
 
     } catch (error: any) {
       console.error(error);
-      // Hiển thị lỗi chi tiết ra màn hình
       alert(`❌ Đăng thất bại: ${error.message}`);
     } finally {
-      setLoading(false); // Luôn tắt loading dù thành công hay thất bại
+      setLoading(false);
     }
   };
 
-  /* =======================
-     UI RENDER
-     ======================= */
   return (
     <form
       onSubmit={(e) => {
@@ -236,7 +211,6 @@ export default function NewProductPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* LEFT COLUMN */}
         <div className="lg:col-span-2 space-y-6">
-          {/* BASIC INFO */}
           <div className="bg-white rounded-xl p-5 shadow-sm">
             <h2 className="font-semibold mb-4 text-gray-800">Thông tin cơ bản</h2>
             <div className="space-y-4">
@@ -264,7 +238,6 @@ export default function NewProductPage() {
             </div>
           </div>
 
-          {/* IMAGES */}
           <div className="bg-white rounded-xl p-5 shadow-sm">
             <h2 className="font-semibold mb-4 text-gray-800">Hình ảnh sản phẩm</h2>
             {form.images.length > 0 && (
@@ -294,7 +267,6 @@ export default function NewProductPage() {
 
         {/* RIGHT COLUMN */}
         <div className="space-y-6">
-          {/* CATEGORY */}
           <div className="bg-white rounded-xl p-5 shadow-sm">
             <h2 className="font-semibold mb-4 text-gray-800">Phân loại</h2>
             <div className="mb-4">
@@ -321,7 +293,6 @@ export default function NewProductPage() {
             </div>
           </div>
 
-          {/* PRICE */}
           <div className="bg-white rounded-xl p-5 shadow-sm">
             <h2 className="font-semibold mb-4 text-gray-800">Giá & Đơn vị</h2>
             <div className="mb-4">
@@ -329,7 +300,7 @@ export default function NewProductPage() {
               <input
                 name="price"
                 type="number"
-                value={form.price === 0 ? "" : form.price} // Fix lỗi số 0 ở đầu
+                value={form.price === 0 ? "" : form.price}
                 onChange={handleChange}
                 placeholder="0"
                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-green-500 font-medium"
@@ -341,7 +312,7 @@ export default function NewProductPage() {
               <input
                 name="salePrice"
                 type="number"
-                value={form.salePrice === 0 ? "" : form.salePrice} // Fix lỗi số 0 ở đầu
+                value={form.salePrice === 0 ? "" : form.salePrice}
                 onChange={handleChange}
                 placeholder="0"
                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-green-500 text-gray-500"
@@ -360,7 +331,6 @@ export default function NewProductPage() {
             </div>
           </div>
 
-          {/* STOCK */}
           <div className="bg-white rounded-xl p-5 shadow-sm">
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-semibold text-gray-800">Kho hàng</h2>
@@ -379,7 +349,7 @@ export default function NewProductPage() {
             <input
               name="stock"
               type="number"
-              value={form.stock === 0 ? "" : form.stock} // Fix lỗi số 0
+              value={form.stock === 0 ? "" : form.stock}
               onChange={handleChange}
               placeholder={isStockManaged ? "Nhập số lượng..." : "Không giới hạn"}
               className={`w-full border rounded-lg px-3 py-2 text-sm transition-colors ${
@@ -387,7 +357,7 @@ export default function NewProductPage() {
                     ? "bg-gray-100 text-gray-400 border-gray-100 cursor-not-allowed" 
                     : "bg-white border-gray-200 focus:outline-none focus:border-green-500"
               }`}
-              disabled={!isStockManaged} // Chỉ disable khi checkbox tắt
+              disabled={!isStockManaged}
             />
           </div>
         </div>

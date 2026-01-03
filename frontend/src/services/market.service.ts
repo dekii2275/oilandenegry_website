@@ -42,18 +42,20 @@ export const marketService = {
   async getMarketPrices(): Promise<MarketPrice[]> {
     try {
       // Gọi API lấy danh sách
-      // Lưu ý: Dùng endpoint MARKET.DATA vì log backend của bạn báo endpoint này chạy ổn (200 OK)
       const response = await apiClient.get<any>(API_ENDPOINTS.MARKET.DATA);
+      
+      // 👇 SỬA Ở ĐÂY: Ép kiểu sang 'any' để TypeScript không báo lỗi khi truy cập .prices
+      const raw = response as any;
       
       let rawList: any[] = [];
       
       // Xử lý các trường hợp trả về khác nhau của API
-      if (Array.isArray(response)) {
-        rawList = response;
-      } else if (response && Array.isArray(response.data)) {
-        rawList = response.data;
-      } else if (response && Array.isArray(response.prices)) {
-        rawList = response.prices;
+      if (Array.isArray(raw)) {
+        rawList = raw;
+      } else if (raw && Array.isArray(raw.data)) {
+        rawList = raw.data;
+      } else if (raw && Array.isArray(raw.prices)) {
+        rawList = raw.prices;
       }
       
       // Map dữ liệu sang chuẩn camelCase
@@ -72,7 +74,8 @@ export const marketService = {
   async getMarketTrends(): Promise<MarketDataResponse> {
     try {
       const response = await apiClient.get<any>(API_ENDPOINTS.MARKET.TRENDS);
-      return response;
+      // Ép kiểu để return về đúng Type
+      return (response as any).data || response;
     } catch (error) {
       console.error('Error fetching market trends:', error)
       return {};

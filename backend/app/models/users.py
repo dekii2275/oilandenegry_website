@@ -12,6 +12,7 @@ class User(Base):
     hashed_password = Column(String, nullable=False)
     full_name = Column(String)
     role = Column(String, default="CUSTOMER")
+    phone_number = Column(String, nullable=True)
     
     # --- BỔ SUNG CỘT CÒN THIẾU ---
     is_active = Column(Boolean, default=True)  # <--- Fix lỗi Seed data

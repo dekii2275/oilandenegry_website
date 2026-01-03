@@ -1,11 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func, desc, asc
-from typing import List, Optional, Any
+from typing import List, Optional
 from pydantic import BaseModel
 
 from app.core.database import get_db
-from app.models.product import Product, Variant, ProductImage
+from app.models.product import Product
 from app.models.store import Store
 from app.models.review import Review
 
@@ -39,7 +39,6 @@ def get_products(
     category: Optional[str] = None,
     sort: Optional[str] = None  # price-asc, price-desc, newest
 ):
-    # Subquery: thống kê review thật theo product_id
     review_stats_sq = (
         db.query(
             Review.product_id.label("product_id"),
@@ -50,7 +49,6 @@ def get_products(
         .subquery()
     )
 
-    # Query chính: lấy Product + review stats
     query = (
         db.query(
             Product,
@@ -60,58 +58,52 @@ def get_products(
         .join(Store)
         .outerjoin(review_stats_sq, review_stats_sq.c.product_id == Product.id)
         .filter(Product.is_active == True, Store.is_active == True)
-        .options(joinedload(Product.variants), joinedload(Product.store))
+        # ✅ Load thêm Product.images để lấy ảnh từ bảng phụ nếu image_url chính bị trống
+        .options(joinedload(Product.store), joinedload(Product.images)) 
     )
 
-    # --- Lọc theo Search ---
     if search:
         search_term = f"%{search}%"
         query = query.filter(Product.name.ilike(search_term))
 
-    # --- Lọc theo Category ---
     if category and category != "Tất cả":
         query = query.filter(Product.category == category)
 
-    # --- Sắp xếp ---
     if sort == "price-asc":
-        query = query.join(Variant).order_by(asc(Variant.price))
+        query = query.order_by(asc(Product.price))
     elif sort == "price-desc":
-        query = query.join(Variant).order_by(desc(Variant.price))
+        query = query.order_by(desc(Product.price))
     elif sort == "newest":
         query = query.order_by(desc(Product.created_at))
     else:
         query = query.order_by(desc(Product.id))
 
-    # Lấy dữ liệu phân trang
     rows = query.offset(skip).limit(limit).all()
 
-    # --- Map dữ liệu trả về ---
     results: List[ProductListResponse] = []
-
-    # 👇 ĐÃ SỬA: Thụt đầu dòng vào trong hàm def get_products
-    for p, real_review_count, real_rating_average in rows:
-        first_variant = p.variants[0] if p.variants else None
-        price = float(first_variant.price) if first_variant and first_variant.price is not None else 0.0
-        market_price = float(first_variant.market_price) if first_variant and first_variant.market_price is not None else 0.0
-
-        safe_slug = p.slug or f"product-{p.id}"
+    for prod, real_review_count, real_rating_average in rows:
+        safe_slug = prod.slug or f"product-{prod.id}"
+        
+        # ✅ FIX LỖI ẢNH: Ưu tiên bảng chính, nếu không có thì lấy ảnh đầu tiên trong bảng phụ
+        display_image = prod.image_url
+        if not display_image and prod.images:
+            display_image = prod.images[0].image_url
 
         results.append(ProductListResponse(
-            id=p.id,
-            name=p.name,
+            id=prod.id,
+            name=prod.name,
             slug=safe_slug,
-            category=p.category,
-            description=p.description,
-            price=price,
-            market_price=market_price,
-            image_url=p.image_url,
+            category=prod.category,
+            description=prod.description,
+            price=float(prod.price or 0),
+            market_price=float(prod.market_price or 0),
+            image_url=display_image, # Sử dụng ảnh đã được kiểm tra logic
             rating_average=float(real_rating_average or 0.0),
             review_count=int(real_review_count or 0),
-            store_name=p.store.store_name if p.store else "Unknown",
-            is_active=p.is_active
+            store_name=prod.store.store_name if prod.store else "Unknown",
+            is_active=prod.is_active
         ))
 
-    # 👇 ĐÃ SỬA: return nằm ngang hàng với for (ngoài vòng lặp, trong hàm)
     return results
 
 
@@ -119,23 +111,24 @@ def get_products(
 def get_product_detail(product_id: int, db: Session = Depends(get_db)):
     product = (
         db.query(Product)
-        .options(joinedload(Product.variants), joinedload(Product.store))
+        # ✅ Load thêm Product.images để lấy toàn bộ ảnh gallery
+        .options(joinedload(Product.store), joinedload(Product.images))
         .filter(Product.id == product_id)
         .first()
     )
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
 
-    first_variant = product.variants[0] if product.variants else None
-    price = float(first_variant.price) if first_variant and first_variant.price is not None else 0.0
-    market_price = float(first_variant.market_price) if first_variant and first_variant.market_price is not None else 0.0
-
-    # ✅ review thật từ bảng reviews
     cnt, avg = (
         db.query(func.count(Review.id), func.avg(Review.rating))
         .filter(Review.product_id == product_id)
         .first()
     )
+
+    # ✅ FIX LỖI ẢNH: Xử lý tương tự cho trang chi tiết
+    display_image = product.image_url
+    if not display_image and product.images:
+        display_image = product.images[0].image_url
 
     return {
         "id": product.id,
@@ -143,9 +136,11 @@ def get_product_detail(product_id: int, db: Session = Depends(get_db)):
         "slug": product.slug,
         "category": product.category,
         "description": product.description,
-        "price": price,
-        "market_price": market_price,
-        "image_url": product.image_url,
+        "price": float(product.price or 0),
+        "market_price": float(product.market_price or 0),
+        "image_url": display_image,
+        # Trả thêm list gallery ảnh cho frontend hiển thị slider ảnh sản phẩm
+        "images": [img.image_url for img in product.images], 
         "rating_average": float(avg or 0.0),
         "review_count": int(cnt or 0),
         "store_id": product.store_id,

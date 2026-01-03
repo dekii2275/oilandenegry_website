@@ -33,5 +33,9 @@ COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/.next ./.next
 COPY --from=build /app/public ./public
 
+# ✅ thêm 2 dòng này
+COPY --from=build /app/next.config.* ./
+COPY --from=build /app/src ./src
+
 EXPOSE 3000
 CMD ["npm", "run", "start", "--", "-p", "3000"]

@@ -1,333 +1,413 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from typing import List
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
+import os
+from urllib.parse import quote
 
 from app.core.database import get_db
-from app.models.users import User
 from app.models.cart import Cart, CartItem
-from app.models.order import Order, OrderItem, OrderStatus, PaymentMethod, ShippingMethod
-from app.models.product import Variant, Product
-from app.models.address import Address
-from app.schemas.order import (
-    OrderCreate, OrderPreviewRequest, OrderPreviewResponse,
-    OrderResponse, OrderDetailResponse, OrderItemResponse
-)
-from app.api.deps import get_current_user
-from app.api.cart import get_or_create_cart
+from app.models.order import Order, OrderItem, OrderStatus
+from app.models.product import Product
+from app.models.store import Store
+from app.schemas.order import OrderCreate, OrderOut, OrderItemOut
 
-router = APIRouter()
+try:
+    from app.api.deps import get_current_user
+except Exception:
+    from app.dependencies import get_current_user  # type: ignore
 
-def calculate_shipping_fee(shipping_method: str, subtotal: Decimal) -> Decimal:
-    """Tính phí ship (có thể customize theo logic của bạn)"""
-    if shipping_method == "express":
-        return Decimal(50000)
-    elif shipping_method == "same_day":
-        return Decimal(100000)
-    else:  # standard
-        return Decimal(30000)
 
-def calculate_discount(voucher_code: str, subtotal: Decimal) -> Decimal:
-    """Tính discount (có thể customize theo logic của bạn)"""
-    if not voucher_code:
-        return Decimal(0)
-    
-    # Ví dụ: SALE10 = giảm 10%
-    if voucher_code.upper() == "SALE10":
-        return subtotal * Decimal("0.1")
-    
-    return Decimal(0)
+router = APIRouter(tags=["Orders"])
 
-# POST /api/orders/preview - Preview checkout
-@router.post("/preview", response_model=OrderPreviewResponse)
-def preview_order(
-    preview_in: OrderPreviewRequest,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+SHIPPING_FEE = Decimal("50000")  # 50k
+TAX_RATE = Decimal("0.10")       # VAT 10%
+
+
+def _q2(x: Decimal) -> Decimal:
+    return x.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+
+def _user_display_name(user) -> str:
+    name = (getattr(user, "full_name", None) or "").strip()
+    return name or "Khách vãng lai"
+
+
+@router.get("/", response_model=list[OrderOut])
+def list_my_orders(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(20, ge=1, le=200),
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
 ):
-    """Preview checkout trước khi đặt hàng"""
-    # Validate address
-    address = db.query(Address).filter(
-        Address.id == preview_in.address_id,
-        Address.user_id == current_user.id
-    ).first()
-    
-    if not address:
-        raise HTTPException(status_code=404, detail="Không tìm thấy địa chỉ")
-    
-    # Get cart
-    cart = get_or_create_cart(db, current_user.id)
-    
-    if not cart.items:
-        raise HTTPException(status_code=400, detail="Giỏ hàng trống")
-    
-    subtotal = Decimal(0)
-    warnings = []
-    
-    # Validate từng item
-    for item in cart.items:
-        variant = db.query(Variant).filter(Variant.id == item.variant_id).first()
-        if not variant or not variant.is_active:
-            warnings.append(f"Sản phẩm {item.variant_id} không còn bán")
-            continue
-        
-        if variant.stock < item.quantity:
-            warnings.append(f"Sản phẩm {variant.name} không đủ tồn kho (cần {item.quantity}, có {variant.stock})")
-            continue
-        
-        # Tính lại giá (không tin giá từ cart)
-        line_total = variant.price * item.quantity
-        subtotal += line_total
-    
-    if warnings:
-        # Vẫn trả về preview nhưng có warnings
-        pass
-    
-    # Tính discount
-    discount = calculate_discount(preview_in.voucher_code, subtotal)
-    
-    # Tính shipping
-    shipping_fee = calculate_shipping_fee(preview_in.shipping_method, subtotal)
-    
-    # Total
-    total = subtotal - discount + shipping_fee
-    
-    return OrderPreviewResponse(
-        subtotal=subtotal,
-        discount=discount,
-        shipping_fee=shipping_fee,
-        total=total,
-        warnings=warnings
+    """
+    List đơn hàng của user đang đăng nhập.
+    GET /api/orders/?skip=0&limit=20
+    """
+    orders = (
+        db.query(Order)
+        .filter(Order.user_id == current_user.id)
+        .order_by(Order.created_at.desc())
+        .offset(skip)
+        .limit(limit)
+        .all()
     )
+    if not orders:
+        return []
 
-# POST /api/orders - Tạo order từ cart
-@router.post("/", response_model=OrderResponse)
+    order_ids = [o.id for o in orders]
+    items = db.query(OrderItem).filter(OrderItem.order_id.in_(order_ids)).all()
+
+    # group items by order_id
+    items_by_order: dict[int, list[OrderItem]] = {}
+    product_ids = set()
+    store_ids = set()
+
+    for it in items:
+        items_by_order.setdefault(int(it.order_id), []).append(it)
+        if it.product_id is not None:
+            product_ids.add(int(it.product_id))
+        if getattr(it, "store_id", None) is not None:
+            store_ids.add(int(it.store_id))
+
+    products = db.query(Product).filter(Product.id.in_(list(product_ids))).all() if product_ids else []
+    product_map = {int(p.id): p for p in products}
+
+    # add store_id from products too
+    for p in products:
+        sid = getattr(p, "store_id", None)
+        if sid is not None:
+            store_ids.add(int(sid))
+
+    stores = db.query(Store).filter(Store.id.in_(list(store_ids))).all() if store_ids else []
+    store_map = {int(s.id): (s.store_name or "") for s in stores}
+
+    out: list[OrderOut] = []
+    for o in orders:
+        o_items = items_by_order.get(int(o.id), [])
+
+        subtotal = Decimal("0")
+        out_items: list[OrderItemOut] = []
+
+        for it in o_items:
+            p = product_map.get(int(it.product_id)) if it.product_id is not None else None
+            pname = (p.name if p else None) or f"Sản phẩm #{it.product_id}"
+
+            sid = getattr(it, "store_id", None)
+            if sid is None and p is not None:
+                sid = getattr(p, "store_id", None)
+            sid_int = int(sid) if sid is not None else None
+            sname = store_map.get(sid_int) if sid_int is not None else None
+
+            unit = Decimal(str(it.price or "0"))
+            qty = int(it.quantity or 0)
+            line = unit * qty
+            subtotal += line
+
+            out_items.append(
+                OrderItemOut(
+                    product_id=int(it.product_id) if it.product_id is not None else 0,
+                    product_name=pname,
+                    store_id=sid_int,
+                    store_name=sname,
+                    quantity=qty,
+                    price=_q2(unit),
+                    line_total=_q2(line),
+                )
+            )
+
+        subtotal = _q2(subtotal)
+        shipping_fee = SHIPPING_FEE if subtotal > 0 else Decimal("0")
+        tax = _q2(subtotal * TAX_RATE)
+        total_amount = _q2(subtotal + shipping_fee + tax)
+
+        out.append(
+            OrderOut(
+                order_id=int(o.id),
+                user_id=int(o.user_id),
+                customer_name=_user_display_name(current_user),
+                customer_phone=getattr(current_user, "phone_number", None),
+                status=o.status,
+                payment_method=o.payment_method or "",
+                shipping_address=o.shipping_address or "",
+                created_at=o.created_at,
+                subtotal=subtotal,
+                shipping_fee=shipping_fee,
+                tax=tax,
+                total_amount=total_amount,
+                items=out_items,
+            )
+        )
+
+    return out
+
+
+@router.post("/", response_model=OrderOut)
 def create_order(
     order_in: OrderCreate,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
 ):
-    """Tạo order từ cart"""
-    # Validate address
-    address = db.query(Address).filter(
-        Address.id == order_in.address_id,
-        Address.user_id == current_user.id
-    ).first()
-    
-    if not address:
-        raise HTTPException(status_code=404, detail="Không tìm thấy địa chỉ")
-    
-    # Get cart
-    cart = get_or_create_cart(db, current_user.id)
-    
-    if not cart.items:
+    shipping_address = (order_in.shipping_address or "").strip()
+    if len(shipping_address) < 5:
+        raise HTTPException(status_code=400, detail="Địa chỉ giao hàng không hợp lệ")
+
+    cart = db.query(Cart).filter(Cart.user_id == current_user.id).first()
+    if not cart:
         raise HTTPException(status_code=400, detail="Giỏ hàng trống")
-    
-    # Validate stock trước khi tạo order
-    for item in cart.items:
-        variant = db.query(Variant).filter(Variant.id == item.variant_id).first()
-        if not variant or variant.stock < item.quantity:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Sản phẩm không đủ tồn kho"
-            )
-    
-    # Tính toán
-    subtotal = Decimal(0)
-    for item in cart.items:
-        variant = db.query(Variant).filter(Variant.id == item.variant_id).first()
-        subtotal += variant.price * item.quantity
-    
-    discount = calculate_discount(order_in.voucher_code, subtotal)
-    shipping_fee = calculate_shipping_fee(order_in.shipping_method, subtotal)
-    total = subtotal - discount + shipping_fee
-    
-    # Xác định initial status
-    if order_in.payment_method == PaymentMethod.COD.value:
-        initial_status = OrderStatus.CONFIRMED.value
-    else:
-        initial_status = OrderStatus.CONFIRMED.value
-    
-    # Tạo Order
+
+    cart_items = db.query(CartItem).filter(CartItem.cart_id == cart.id).all()
+    if not cart_items:
+        raise HTTPException(status_code=400, detail="Giỏ hàng trống")
+
+    subtotal = Decimal("0")
+    prepared: list[tuple[Product, int, Decimal]] = []  # (product, qty, unit_price)
+    store_ids = set()
+
+    for it in cart_items:
+        qty = int(it.quantity or 0)
+        if qty <= 0:
+            raise HTTPException(status_code=400, detail="Số lượng không hợp lệ")
+
+        product = (
+            db.query(Product)
+            .filter(Product.id == it.product_id)
+            .with_for_update()
+            .first()
+        )
+        if not product:
+            raise HTTPException(status_code=404, detail=f"Không tìm thấy sản phẩm id={it.product_id}")
+
+        stock = int(getattr(product, "stock", 0) or 0)
+        if stock < qty:
+            raise HTTPException(status_code=400, detail=f"Sản phẩm '{product.name}' không đủ tồn kho (còn {stock})")
+
+        # lấy giá tại thời điểm add-to-cart (nếu có), fallback về product.price
+        price_at_add = getattr(it, "price_at_add", None)
+        if price_at_add is None:
+            price_at_add = getattr(product, "price", 0) or 0
+        unit_price = Decimal(str(price_at_add))
+
+        subtotal += unit_price * qty
+        prepared.append((product, qty, unit_price))
+
+        sid = getattr(product, "store_id", None)
+        if sid is not None:
+            store_ids.add(int(sid))
+
+    subtotal = _q2(subtotal)
+    shipping_fee = SHIPPING_FEE if subtotal > 0 else Decimal("0")
+    tax = _q2(subtotal * TAX_RATE)
+    total_amount = _q2(subtotal + shipping_fee + tax)
+
+    store_map = {}
+    if store_ids:
+        stores = db.query(Store).filter(Store.id.in_(list(store_ids))).all()
+        store_map = {int(s.id): (s.store_name or "") for s in stores}
+
+    # QR -> PENDING, COD -> CONFIRMED
+    initial_status = (
+        OrderStatus.PENDING.value
+        if (order_in.payment_method or "").upper() == "QR"
+        else OrderStatus.CONFIRMED.value
+    )
+
     new_order = Order(
         user_id=current_user.id,
-        address_id=order_in.address_id,
+        total_amount=total_amount,
         status=initial_status,
         payment_method=order_in.payment_method,
-        shipping_method=order_in.shipping_method,
-        subtotal=subtotal,
-        discount=discount,
-        shipping_fee=shipping_fee,
-        total=total,
-        note=order_in.note,
-        voucher_code=order_in.voucher_code
+        shipping_address=shipping_address,
     )
     db.add(new_order)
     db.flush()
-    
-    # Tạo OrderItems và trừ stock
-    order_items = []
-    for item in cart.items:
-        variant = db.query(Variant).filter(Variant.id == item.variant_id).first()
-        product = db.query(Product).filter(Product.id == variant.product_id).first()
-        
-        order_item = OrderItem(
+
+    out_items: list[OrderItemOut] = []
+    for product, qty, unit_price in prepared:
+        product.stock = int(getattr(product, "stock", 0) or 0) - qty
+
+        sid = int(getattr(product, "store_id", 0) or 0) if getattr(product, "store_id", None) is not None else None
+        sname = store_map.get(sid) if sid is not None else None
+
+        oi = OrderItem(
             order_id=new_order.id,
-            variant_id=item.variant_id,
-            product_name=product.name,
-            variant_name=variant.name,
-            price=variant.price,
-            quantity=item.quantity,
-            line_total=variant.price * item.quantity
+            product_id=product.id,
+            store_id=sid,
+            quantity=qty,
+            price=unit_price,
         )
-        
-        # Trừ stock
-        variant.stock -= item.quantity
-        
-        db.add(order_item)
-        order_items.append(order_item)
-    
-    # Xóa cart items
-    for item in cart.items:
-        db.delete(item)
-    
+        db.add(oi)
+
+        out_items.append(
+            OrderItemOut(
+                product_id=int(product.id),
+                product_name=product.name or f"Sản phẩm #{product.id}",
+                store_id=sid,
+                store_name=sname,
+                quantity=qty,
+                price=_q2(unit_price),
+                line_total=_q2(unit_price * qty),
+            )
+        )
+
+    # clear cart
+    db.query(CartItem).filter(CartItem.cart_id == cart.id).delete()
+
     db.commit()
     db.refresh(new_order)
-    
-    for item in order_items:
-        db.refresh(item)
-    
-    # Build response
-    return OrderResponse(
-        order_id=new_order.id,
-        user_id=new_order.user_id,
-        address_id=new_order.address_id,
+
+    return OrderOut(
+        order_id=int(new_order.id),
+        user_id=int(new_order.user_id),
+        customer_name=_user_display_name(current_user),
+        customer_phone=getattr(current_user, "phone_number", None),
         status=new_order.status,
-        payment_method=new_order.payment_method,
-        shipping_method=new_order.shipping_method,
-        subtotal=new_order.subtotal,
-        discount=new_order.discount,
-        shipping_fee=new_order.shipping_fee,
-        total=new_order.total,
-        note=new_order.note,
-        voucher_code=new_order.voucher_code,
-        payment_url=new_order.payment_url,
+        payment_method=new_order.payment_method or "",
+        shipping_address=new_order.shipping_address or "",
         created_at=new_order.created_at,
-        updated_at=new_order.updated_at,
-        items=[
-            OrderItemResponse(
-                id=item.id,
-                order_id=item.order_id,
-                variant_id=item.variant_id,
-                product_name=item.product_name,
-                variant_name=item.variant_name,
-                price=item.price,
-                quantity=item.quantity,
-                line_total=item.line_total
-            )
-            for item in order_items
-        ]
-    )
-                
-
-# GET /api/orders/{order_id} - Xem chi tiết đơn hàng
-@router.get("/{order_id}", response_model=OrderDetailResponse)
-def get_order_detail(
-    order_id: int,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """Xem chi tiết đơn hàng"""
-    order = db.query(Order).filter(
-        Order.id == order_id,
-        Order.user_id == current_user.id
-    ).first()
-    
-    if not order:
-        raise HTTPException(status_code=404, detail="Không tìm thấy đơn hàng")
-    
-    items = db.query(OrderItem).filter(OrderItem.order_id == order.id).all()
-    
-    return OrderDetailResponse(
-        order_id=order.id,
-        status=order.status,
-        total=order.total,
-        created_at=order.created_at,
-        items=[OrderItemResponse.from_orm(item) for item in items],
-        address_id=order.address_id,
-        payment_method=order.payment_method,
-        shipping_method=order.shipping_method,
-        subtotal=order.subtotal,
-        discount=order.discount,
-        shipping_fee=order.shipping_fee,
-        note=order.note,
-        voucher_code=order.voucher_code,
-        payment_url=order.payment_url
+        subtotal=subtotal,
+        shipping_fee=shipping_fee,
+        tax=tax,
+        total_amount=total_amount,
+        items=out_items,
     )
 
 
-@router.put("/{order_id}/cancel", response_model=OrderResponse)
-def cancel_order(
+@router.get("/{order_id}", response_model=OrderOut)
+def get_order(
     order_id: int,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
 ):
-    """
-    Customer hủy đơn hàng khi còn ở trạng thái CONFIRMED (chưa giao).
-    Hoàn lại tồn kho cho các variant trong đơn.
-    """
-    order = db.query(Order).filter(
-        Order.id == order_id,
-        Order.user_id == current_user.id
-    ).first()
-
+    order = (
+        db.query(Order)
+        .filter(Order.id == order_id, Order.user_id == current_user.id)
+        .first()
+    )
     if not order:
         raise HTTPException(status_code=404, detail="Không tìm thấy đơn hàng")
 
-    # ✅ Chỉ cho phép hủy khi đơn đang CONFIRMED (chưa giao)
-    if order.status != OrderStatus.CONFIRMED:
-        raise HTTPException(status_code=400, detail="Chỉ có thể hủy đơn hàng ở trạng thái CONFIRMED")
-
-    # Hoàn lại stock cho các item
     items = db.query(OrderItem).filter(OrderItem.order_id == order.id).all()
-    for item in items:
-        variant = db.query(Variant).filter(Variant.id == item.variant_id).first()
-        if variant:
-            variant.stock = (variant.stock or 0) + item.quantity
 
-    order.status = OrderStatus.CANCELLED
-    db.commit()
-    db.refresh(order)
+    product_ids = list({int(it.product_id) for it in items if it.product_id is not None})
+    products = db.query(Product).filter(Product.id.in_(product_ids)).all() if product_ids else []
+    product_map = {int(p.id): p for p in products}
 
-    # Trả về order sau khi hủy (kèm items)
-    items = db.query(OrderItem).filter(OrderItem.order_id == order.id).all()
-    return OrderResponse(
-        order_id=order.id,
-        user_id=order.user_id,
-        address_id=order.address_id,
-        status=order.status,
-        payment_method=order.payment_method,
-        shipping_method=order.shipping_method,
-        subtotal=order.subtotal,
-        discount=order.discount,
-        shipping_fee=order.shipping_fee,
-        total=order.total,
-        note=getattr(order, "note", None),
-        voucher_code=getattr(order, "voucher_code", None),
-        payment_url=getattr(order, "payment_url", None),
-        created_at=order.created_at,
-        updated_at=order.updated_at,
-        items=[
-            OrderItemResponse(
-                id=i.id,
-                order_id=i.order_id,
-                variant_id=i.variant_id,
-                product_name=i.product_name,
-                variant_name=i.variant_name,
-                price=i.price,
-                quantity=i.quantity,
-                line_total=i.line_total
+    store_ids = set()
+    for it in items:
+        sid = getattr(it, "store_id", None)
+        if sid is not None:
+            store_ids.add(int(sid))
+        p = product_map.get(int(it.product_id)) if it.product_id is not None else None
+        if p is not None and getattr(p, "store_id", None) is not None:
+            store_ids.add(int(p.store_id))
+
+    stores = db.query(Store).filter(Store.id.in_(list(store_ids))).all() if store_ids else []
+    store_map = {int(s.id): (s.store_name or "") for s in stores}
+
+    subtotal = Decimal("0")
+    out_items: list[OrderItemOut] = []
+
+    for it in items:
+        p = product_map.get(int(it.product_id)) if it.product_id is not None else None
+        pname = (p.name if p else None) or f"Sản phẩm #{it.product_id}"
+
+        sid = getattr(it, "store_id", None)
+        if sid is None and p is not None:
+            sid = getattr(p, "store_id", None)
+        sid_int = int(sid) if sid is not None else None
+        sname = store_map.get(sid_int) if sid_int is not None else None
+
+        unit = Decimal(str(it.price or "0"))
+        qty = int(it.quantity or 0)
+        line = unit * qty
+        subtotal += line
+
+        out_items.append(
+            OrderItemOut(
+                product_id=int(it.product_id) if it.product_id is not None else 0,
+                product_name=pname,
+                store_id=sid_int,
+                store_name=sname,
+                quantity=qty,
+                price=_q2(unit),
+                line_total=_q2(line),
             )
-            for i in items
-        ]
+        )
+
+    subtotal = _q2(subtotal)
+    shipping_fee = SHIPPING_FEE if subtotal > 0 else Decimal("0")
+    tax = _q2(subtotal * TAX_RATE)
+    total_amount = _q2(subtotal + shipping_fee + tax)
+
+    return OrderOut(
+        order_id=int(order.id),
+        user_id=int(order.user_id),
+        customer_name=_user_display_name(current_user),
+        customer_phone=getattr(current_user, "phone_number", None),
+        status=order.status,
+        payment_method=order.payment_method or "",
+        shipping_address=order.shipping_address or "",
+        created_at=order.created_at,
+        subtotal=subtotal,
+        shipping_fee=shipping_fee,
+        tax=tax,
+        total_amount=total_amount,
+        items=out_items,
     )
+
+
+@router.get("/{order_id}/qr")
+def get_order_qr(
+    order_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """
+    Trả về URL ảnh QR (VietQR) cho đơn hàng.
+    - QR chuyển thẳng về ADMIN (bank/bin + account của admin)
+    - amount = total_amount của order
+    """
+    order = (
+        db.query(Order)
+        .filter(Order.id == order_id, Order.user_id == current_user.id)
+        .first()
+    )
+    if not order:
+        raise HTTPException(status_code=404, detail="Không tìm thấy đơn hàng")
+
+    if (order.payment_method or "").upper() != "QR":
+        raise HTTPException(status_code=400, detail="Đơn hàng này không chọn thanh toán QR")
+
+    bank_bin = (os.getenv("VQR_BANK_BIN") or "").strip()
+    account_no = (os.getenv("VQR_ACCOUNT_NO") or "").strip()
+    account_name = (os.getenv("VQR_ACCOUNT_NAME") or "").strip()
+
+    if not bank_bin or not account_no or not account_name:
+        raise HTTPException(
+            status_code=500,
+            detail="Thiếu cấu hình VietQR (VQR_BANK_BIN/VQR_ACCOUNT_NO/VQR_ACCOUNT_NAME)",
+        )
+
+    total = Decimal(str(order.total_amount or "0"))
+    amount_int = int(total.to_integral_value(rounding=ROUND_HALF_UP))
+    if amount_int <= 0:
+        raise HTTPException(status_code=400, detail="Số tiền đơn hàng không hợp lệ")
+
+    add_info = f"ZENERGY ORDER #{order.id}"
+    base = f"https://img.vietqr.io/image/{bank_bin}-{account_no}-compact2.png"
+    qr_url = (
+        f"{base}"
+        f"?amount={amount_int}"
+        f"&addInfo={quote(add_info)}"
+        f"&accountName={quote(account_name)}"
+    )
+
+    return {
+        "order_id": int(order.id),
+        "amount": amount_int,
+        "account_name": account_name,
+        "account_no": account_no,
+        "bank_bin": bank_bin,
+        "add_info": add_info,
+        "qr_image_url": qr_url,
+    }

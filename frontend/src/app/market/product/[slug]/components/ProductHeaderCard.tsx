@@ -1,8 +1,6 @@
-// frontend/src/app/market/product/[slug]/components/ProductHeaderCard.tsx
-
 "use client";
-import { apiClient } from "@/lib/api-client";
-import { useState } from "react";
+
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Droplets,
@@ -15,48 +13,52 @@ import {
   TrendingDown,
   CheckCircle,
 } from "lucide-react";
-import { Product } from "../types";
-import { useAuth } from "@/app/providers/AuthProvider";
 import { toast } from "react-hot-toast";
 
-const getToken = () =>
-  localStorage.getItem("zenergy_token") ||
-  localStorage.getItem("access_token") ||
-  localStorage.getItem("token") ||
-  "";
-
+import { Product } from "../types";
+import { useAuth } from "@/app/providers/AuthProvider";
+import { apiClient } from "@/lib/api-client";
 
 interface ProductHeaderCardProps {
   product: Product;
 }
 
-
-
 export default function ProductHeaderCard({ product }: ProductHeaderCardProps) {
-  const [selectedVariant, setSelectedVariant] = useState<any>(null);
+  const router = useRouter();
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
+
   const [quantity, setQuantity] = useState<number>(1);
-
-
   const [isFavorite, setIsFavorite] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const router = useRouter();
-  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
 
   const getProductIcon = () => {
-    if (product.category?.includes("Dầu")) {
-      return Droplets;
-    } else if (product.category?.includes("Điện")) {
-      return Sparkles;
-    }
+    if (product.category?.includes("Dầu")) return Droplets;
+    if (product.category?.includes("Điện")) return Sparkles;
     return Package;
   };
-
   const Icon = getProductIcon();
 
-  // Hàm kiểm tra đăng nhập
+  // ✅ Auth guard
   const checkAuthAndRedirect = (actionType: "buy-now" | "add-to-cart") => {
-    if (!isAuthenticated) {
-      // Lưu thông tin sản phẩm và hành động vào sessionStorage để sau khi login có thể tiếp tục
+    if (authLoading) {
+      toast("Đang xác thực đăng nhập, thử lại sau 1–2 giây...", {
+        icon: "⏳",
+        duration: 2500,
+      });
+      return false;
+    }
+
+    const token =
+      typeof window !== "undefined"
+        ? localStorage.getItem("access_token") ||
+          localStorage.getItem("zenergy_token") ||
+          localStorage.getItem("token") ||
+          ""
+        : "";
+
+    if (token) return true;
+
+    if (typeof window !== "undefined" && product) {
       sessionStorage.setItem(
         "pendingAction",
         JSON.stringify({
@@ -65,225 +67,147 @@ export default function ProductHeaderCard({ product }: ProductHeaderCardProps) {
             id: product.id,
             name: product.name,
             price: product.price,
-            slug: product.slug,
-            quantity: 1,
+            quantity: quantity,
           },
           redirectUrl: window.location.href,
         })
       );
-
-      // Hiển thị thông báo yêu cầu đăng nhập
-      if (typeof window !== "undefined") {
-        toast.error("Vui lòng đăng nhập để tiếp tục mua hàng!", {
-          duration: 4000,
-          icon: "🔒",
-        });
-      }
-
-      // Redirect đến trang đăng nhập với callback URL
-      router.push(
-        `/login?redirect=${encodeURIComponent(window.location.href)}`
-      );
-      return false;
     }
-    return true;
+
+    toast.error("Vui lòng đăng nhập để tiếp tục mua hàng!", {
+      duration: 4000,
+      icon: "🔒",
+    });
+
+    if (typeof window !== "undefined") {
+      router.push(`/login?redirect=${encodeURIComponent(window.location.href)}`);
+    }
+
+    return false;
   };
 
-  // Xử lý click Mua Ngay
+  // ✅ No variants: cart uses product_id only
+  // ✅ Mua ngay
   const handleBuyNow = async () => {
-    if (authLoading) return;
     if (!checkAuthAndRedirect("buy-now")) return;
-
-    // yêu cầu chọn biến thể (vì backend cart dùng variant_id)
-    if (!selectedVariant?.id) {
-      toast.error("Vui lòng chọn biến thể trước khi mua!", { duration: 3000 });
-      return;
-    }
 
     setIsLoading(true);
     try {
+      const qty = Math.max(1, quantity);
+
       await apiClient.post("/cart/items", {
-        variant_id: selectedVariant.id,
-        quantity: 1,
+        product_id: product.id,
+        quantity: qty,
       });
 
-      window.dispatchEvent(new Event("cart-updated"));
-      toast.success("Đã thêm vào giỏ hàng!", { duration: 2500, icon: "🛒" });
-
-      // chuyển thẳng sang checkout (checkout sẽ fetch cart DB)
-      router.push("/cart/checkout");
-    } catch (error) {
-      console.error("Lỗi khi mua ngay:", error);
-      toast.error("Có lỗi xảy ra khi xử lý đơn hàng!", { duration: 4000 });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-      // Lấy giỏ hàng hiện tại từ localStorage
-      const currentCart = JSON.parse(
-      );
-
-      // Thêm sản phẩm vào giỏ hàng
-      const existingItemIndex = currentCart.findIndex(
-        (item: any) => item.id === product.id
-      );
-      if (existingItemIndex > -1) {
-        currentCart[existingItemIndex].quantity += 1;
-      } else {
-        currentCart.push(cartItem);
+if (typeof window !== "undefined") {
+        window.dispatchEvent(new Event("cart-updated"));
       }
 
-      // Lưu lại vào localStorage
-
-      // Dispatch event để cập nhật UI
-      const event = new CustomEvent("cart-updated", {
-        detail: { count: currentCart.length },
-      });
-      window.dispatchEvent(event);
-
-      // Hiển thị thông báo
-      toast.success("Đã thêm vào giỏ hàng!", {
-        duration: 3000,
-        icon: "🛒",
-      });
-
-      // Chờ một chút rồi chuyển đến trang thanh toán
-      setTimeout(() => {
-        router.push("/cart/checkout");
-      }, 1000);
-    } catch (error) {
+      router.push("/cart/checkout");
+    } catch (error: any) {
       console.error("Lỗi khi mua ngay:", error);
-      toast.error("Có lỗi xảy ra khi xử lý đơn hàng!", {
-        duration: 4000,
-      });
+      const status = error?.response?.status;
+      if (status === 401) {
+        toast.error("Vui lòng đăng nhập để tiếp tục!", { duration: 3500, icon: "🔒" });
+        router.push("/login");
+        return;
+      }
+      toast.error("Có lỗi xảy ra khi xử lý đơn hàng!", { duration: 4000, icon: "❌" });
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Xử lý click Thêm Giỏ
-const handleAddToCart = async () => {
-  if (!product || !selectedVariant) return;
+  // ✅ Thêm giỏ
+  const handleAddToCart = async () => {
+    if (!checkAuthAndRedirect("add-to-cart")) return;
 
-  if (authLoading) return;
-  if (!checkAuthAndRedirect("add-to-cart")) return;
+    setIsLoading(true);
+    try {
+      const qty = Math.max(1, quantity);
 
-  setIsLoading(true);
-  try {
-    await apiClient.post("/cart/items", {
-      variant_id: selectedVariant.id,
-      quantity,
-    });
+      await apiClient.post("/cart/items", {
+        product_id: product.id,
+        quantity: qty,
+      });
 
-    window.dispatchEvent(new Event("cart-updated"));
-    toast.success("Đã thêm vào giỏ hàng!", { duration: 3000, icon: "🛒" });
-  } catch (e: any) {
-    console.error("Add cart failed:", e);
-    toast.error("Thêm vào giỏ hàng thất bại!");
-  } finally {
-    setIsLoading(false);
-  }
-};
-  // ✅ Gọi API backend thật
-//   await fetch("/api/cart/items", {
-//   method: "POST",
-//   headers: { "Content-Type": "application/json" },
-//   credentials: "include",
-//   body: JSON.stringify({
-//     variant_id: selectedVariant.id,
-//     quantity,
-//   }),
-// });
+if (typeof window !== "undefined") {
+        window.dispatchEvent(new Event("cart-updated"));
+      }
 
+      toast.success("Đã thêm vào giỏ hàng!", { duration: 2500, icon: "🛒" });
+    } catch (e: any) {
+      console.error("Add cart failed:", e);
+      const status = e?.response?.status;
+      if (status === 401) {
+        toast.error("Vui lòng đăng nhập để tiếp tục!", { duration: 3500, icon: "🔒" });
+        router.push("/login");
+        return;
+      }
+      toast.error("Thêm vào giỏ hàng thất bại!", { duration: 3500, icon: "❌" });
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-
-
-  // Bắn event để Header / UI update số lượng
-//   window.dispatchEvent(new Event("cart-updated"));
-// };
-
-
-  // Xử lý yêu thích
+  // ❤️ Favorite
   const handleToggleFavorite = async () => {
     if (authLoading) return;
 
     if (!isAuthenticated) {
-      toast.error("Vui lòng đăng nhập để lưu sản phẩm yêu thích!", {
-        duration: 3000,
-      });
-      router.push(
-        `/login?redirect=${encodeURIComponent(window.location.href)}`
-      );
+      toast.error("Vui lòng đăng nhập để lưu sản phẩm yêu thích!", { duration: 3000, icon: "🔒" });
+      router.push(`/login?redirect=${encodeURIComponent(window.location.href)}`);
       return;
     }
 
     try {
-      // Mock: Lưu vào localStorage
-      const currentFavorites = JSON.parse(
-        localStorage.getItem("zenergy_favorites") || "[]"
-      );
+      const key = "zenergy_favorites";
+      const currentFavorites = JSON.parse(localStorage.getItem(key) || "[]");
 
       if (isFavorite) {
-        // Xóa khỏi danh sách yêu thích
-        const newFavorites = currentFavorites.filter(
-          (fav: any) => fav.id !== product.id
-        );
-        localStorage.setItem("zenergy_favorites", JSON.stringify(newFavorites));
+        const newFavorites = currentFavorites.filter((fav: any) => fav.id !== product.id);
+        localStorage.setItem(key, JSON.stringify(newFavorites));
         setIsFavorite(false);
-        toast.success("Đã xóa khỏi danh sách yêu thích!", {
-          duration: 3000,
-          icon: "💔",
-        });
+        toast.success("Đã xóa khỏi danh sách yêu thích!", { duration: 2500, icon: "💔" });
       } else {
-        // Thêm vào danh sách yêu thích
-        const favoriteItem = {
+        currentFavorites.push({
           id: product.id,
           name: product.name,
           slug: product.slug,
           price: product.price,
           category: product.category,
           addedAt: new Date().toISOString(),
-        };
-        currentFavorites.push(favoriteItem);
-        localStorage.setItem(
-          "zenergy_favorites",
-          JSON.stringify(currentFavorites)
-        );
-        setIsFavorite(true);
-        toast.success("Đã thêm vào danh sách yêu thích!", {
-          duration: 3000,
-          icon: "❤️",
         });
+        localStorage.setItem(key, JSON.stringify(currentFavorites));
+        setIsFavorite(true);
+        toast.success("Đã thêm vào danh sách yêu thích!", { duration: 2500, icon: "❤️" });
       }
 
-      // Dispatch event để cập nhật UI nếu cần
-      const event = new CustomEvent("favorites-updated");
-      window.dispatchEvent(event);
+      window.dispatchEvent(new Event("favorites-updated"));
     } catch (error) {
       console.error("Lỗi khi xử lý yêu thích:", error);
-      toast.error("Có lỗi xảy ra!", {
-        duration: 4000,
-      });
+      toast.error("Có lỗi xảy ra!", { duration: 3500, icon: "❌" });
     }
   };
 
-  // Kiểm tra xem sản phẩm đã được yêu thích chưa
-  useState(() => {
-    if (typeof window !== "undefined" && isAuthenticated) {
-      const currentFavorites = JSON.parse(
-        localStorage.getItem("zenergy_favorites") || "[]"
-      );
-      const isProductFavorite = currentFavorites.some(
-        (fav: any) => fav.id === product.id
-      );
-      setIsFavorite(isProductFavorite);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!isAuthenticated) return;
+
+    try {
+      const currentFavorites = JSON.parse(localStorage.getItem("zenergy_favorites") || "[]");
+      const ok = currentFavorites.some((fav: any) => fav.id === product.id);
+      setIsFavorite(ok);
+    } catch {
+      // ignore
     }
-  });
+  }, [isAuthenticated, product.id]);
 
   return (
     <div className="bg-white rounded-3xl p-8 shadow-lg border border-gray-100">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-        {/* Left side - Product Info */}
+        {/* Left side */}
         <div className="flex items-center gap-5">
           <div className="relative">
             <div className="p-4 bg-gradient-to-br from-green-50 to-emerald-100 rounded-2xl">
@@ -295,11 +219,11 @@ const handleAddToCart = async () => {
               </div>
             )}
           </div>
+
           <div>
             <div className="flex items-center gap-3 mb-2">
-              <h1 className="text-2xl font-bold text-gray-800">
-                {product.name}
-              </h1>
+              <h1 className="text-2xl font-bold text-gray-800">{product.name}</h1>
+
               <button
                 onClick={handleToggleFavorite}
                 disabled={isLoading || authLoading}
@@ -313,6 +237,7 @@ const handleAddToCart = async () => {
                 <Heart size={18} fill={isFavorite ? "currentColor" : "none"} />
               </button>
             </div>
+
             <div className="flex flex-wrap gap-2">
               <span className="text-xs px-3 py-1.5 bg-green-100 text-green-700 rounded-full font-bold">
                 {product.category}
@@ -338,18 +263,19 @@ const handleAddToCart = async () => {
           </div>
         </div>
 
-        {/* Right side - Price & Actions */}
+        {/* Right side */}
         <div className="flex flex-col items-end gap-3">
           <div className="text-right">
             <div className="text-4xl font-black text-gray-800 mb-1">
               $
               {typeof product.price === "number"
-                ? product.price.toLocaleString("en-US", {
+                ? product.price.toLocaleString("vi-VN", {
                     minimumFractionDigits: 2,
                     maximumFractionDigits: 2,
                   })
                 : product.price}
             </div>
+
             <div
               className={`flex items-center justify-end gap-2 ${
                 product.isUp ? "text-green-500" : "text-red-500"
@@ -360,39 +286,44 @@ const handleAddToCart = async () => {
               ) : (
                 <TrendingDown size={18} />
               )}
-              <span className="text-lg font-bold">
-                {product.changeFormatted}
-              </span>
+              <span className="text-lg font-bold">{product.changeFormatted}</span>
             </div>
           </div>
+
+          {/* quantity */}
+          <div className="flex items-center gap-2">
+            <button
+              className="w-9 h-9 rounded-xl border border-gray-200 font-bold"
+              onClick={() => setQuantity((q) => Math.max(1, q - 1))}
+              disabled={isLoading}
+            >
+              -
+            </button>
+            <div className="min-w-[40px] text-center font-bold">{quantity}</div>
+            <button
+              className="w-9 h-9 rounded-xl border border-gray-200 font-bold"
+              onClick={() => setQuantity((q) => q + 1)}
+              disabled={isLoading}
+            >
+              +
+            </button>
+          </div>
+
           <div className="flex gap-3">
             <button
               onClick={handleBuyNow}
               disabled={isLoading || authLoading}
               className="px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold rounded-xl hover:from-green-600 hover:to-emerald-700 transition-all shadow-lg shadow-green-200 hover:shadow-xl hover:shadow-green-300 disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center min-w-[120px]"
             >
-              {isLoading ? (
-                <span className="flex items-center gap-2">
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  Đang xử lý...
-                </span>
-              ) : (
-                "Mua Ngay"
-              )}
+              {isLoading ? "Đang xử lý..." : "Mua Ngay"}
             </button>
+
             <button
               onClick={handleAddToCart}
               disabled={isLoading || authLoading}
               className="px-6 py-3 bg-white border-2 border-green-500 text-green-600 font-bold rounded-xl hover:bg-green-50 transition-colors disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center min-w-[120px]"
             >
-              {isLoading ? (
-                <span className="flex items-center gap-2">
-                  <div className="w-4 h-4 border-2 border-green-500 border-t-transparent rounded-full animate-spin"></div>
-                  Đang thêm...
-                </span>
-              ) : (
-                "Thêm Giỏ"
-              )}
+              {isLoading ? "Đang thêm..." : "Thêm Giỏ"}
             </button>
           </div>
         </div>

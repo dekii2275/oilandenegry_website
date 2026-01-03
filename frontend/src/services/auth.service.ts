@@ -45,11 +45,18 @@ export const authService = {
    */
   async register(payload: RegisterPayload): Promise<AuthResponse | { success: boolean }> {
     try {
-      const response = await apiClient.post<AuthResponse | { success: boolean }>(
+      // Ép kiểu response về any để tránh lỗi TypeScript khi build
+      // (Vì AxiosResponse không khớp trực tiếp với AuthResponse)
+      const response = await apiClient.post<any>(
         `${AUTH_URL}/register`, 
         payload
-      )
-      return response
+      );
+      
+      // Kiểm tra nếu response có thuộc tính data (trường hợp Axios trả về object đầy đủ)
+      // hoặc trả về trực tiếp (nếu có interceptor)
+      const data = (response as any).data || response;
+      
+      return data as AuthResponse | { success: boolean };
     } catch (error: any) {
       console.error('Error registering user:', error)
       // Ném ra Error mới chỉ chứa string message -> UI không bị crash
@@ -63,14 +70,18 @@ export const authService = {
    */
   async login(payload: LoginPayload): Promise<AuthResponse> {
     try {
-      const response = await apiClient.post<AuthResponse>(
+      const response = await apiClient.post<any>(
         `${AUTH_URL}/login`,
         payload
       )
       
-      if (response.access_token && typeof window !== 'undefined') {
-        localStorage.setItem('zenergy_token', response.access_token)
-        localStorage.setItem('access_token', response.access_token)
+      // Tương tự, lấy data từ response hoặc dùng chính response
+      const data = (response as any).data || response;
+      const authData = data as AuthResponse;
+
+      if (authData.access_token && typeof window !== 'undefined') {
+        localStorage.setItem('zenergy_token', authData.access_token)
+        localStorage.setItem('access_token', authData.access_token)
       }
       
       // Lấy thông tin user ngay sau khi login để lưu vào storage
@@ -84,7 +95,7 @@ export const authService = {
         }
       }
 
-      return response
+      return authData
     } catch (error: any) {
       console.error('Error logging in:', error)
       // Xử lý lỗi sạch sẽ trước khi ném ra ngoài
@@ -119,7 +130,8 @@ export const authService = {
    */
   async getCurrentUser(): Promise<any> {
     try {
-      return await apiClient.get(`${USERS_URL}/me`)
+      const response = await apiClient.get<any>(`${USERS_URL}/me`);
+      return (response as any).data || response;
     } catch (error: any) {
       // Không ném lỗi ở đây để tránh crash AuthProvider khi token hết hạn
       // Chỉ log và ném tiếp để AuthProvider xử lý logout
@@ -138,7 +150,8 @@ export const authService = {
     address?: string | null
   }): Promise<any> {
     try {
-      return await apiClient.put(`${USERS_URL}/me`, payload)
+      const response = await apiClient.put<any>(`${USERS_URL}/me`, payload);
+      return (response as any).data || response;
     } catch (error: any) {
       console.error('Error updating current user:', error)
       throw new Error(handleApiError(error));
@@ -150,7 +163,8 @@ export const authService = {
    */
   async forgotPassword(email: string): Promise<{ message: string }> {
     try {
-      return await apiClient.post(`${AUTH_URL}/forgot-password`, { email })
+      const response = await apiClient.post<any>(`${AUTH_URL}/forgot-password`, { email });
+      return (response as any).data || response;
     } catch (error: any) {
       console.error('Error requesting password reset:', error)
       throw new Error(handleApiError(error));
@@ -162,7 +176,8 @@ export const authService = {
    */
   async resetPassword(token: string, password: string): Promise<{ message: string }> {
     try {
-      return await apiClient.post(`${AUTH_URL}/reset-password`, { token, password })
+      const response = await apiClient.post<any>(`${AUTH_URL}/reset-password`, { token, password });
+      return (response as any).data || response;
     } catch (error: any) {
       console.error('Error resetting password:', error)
       throw new Error(handleApiError(error));
@@ -176,7 +191,8 @@ export const authService = {
     try {
       // Lưu ý: Nếu backend của bạn yêu cầu POST thay vì GET, hãy đổi thành .post
       // Nhưng dựa vào log ảnh trước đó (GET 422), tôi giữ nguyên là .get
-      return await apiClient.get(`${AUTH_URL}/verify`, { params: { token } })
+      const response = await apiClient.get<any>(`${AUTH_URL}/verify`, { params: { token } });
+      return (response as any).data || response;
     } catch (error: any) {
       console.error('Error verifying email:', error)
       // QUAN TRỌNG: Ném ra Error string, không ném raw object

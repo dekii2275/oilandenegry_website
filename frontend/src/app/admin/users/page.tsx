@@ -33,7 +33,7 @@ export default function AdminUsersPage() {
         return;
       }
 
-      const res = await fetch("https://zenergy.cloud/api/users/?skip=0&limit=100", {
+      const res = await fetch("https://zenergy.cloud/api/admin/users/?skip=0&limit=100", {
         method: "GET",
         headers: {
           "Authorization": `Bearer ${token}`,
@@ -73,7 +73,7 @@ export default function AdminUsersPage() {
     try {
       const token = Cookies.get("adminToken");
       // Gọi API PUT (Lưu ý: URL param query string)
-      const res = await fetch(`https://zenergy.cloud/api/users/${userId}/status?is_active=${!currentStatus}`, {
+      const res = await fetch(`https://zenergy.cloud/api/admin/users/${userId}/status?is_active=${!currentStatus}`, {
         method: "PUT",
         headers: { "Authorization": `Bearer ${token}` }
       });
@@ -104,7 +104,7 @@ export default function AdminUsersPage() {
 
     try {
       const token = Cookies.get("adminToken");
-      const res = await fetch(`https://zenergy.cloud/api/users/${userId}`, {
+      const res = await fetch(`https://zenergy.cloud/api/admin/users/${userId}`, {
         method: "DELETE",
         headers: { "Authorization": `Bearer ${token}` }
       });

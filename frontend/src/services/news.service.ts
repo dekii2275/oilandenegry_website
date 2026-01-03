@@ -4,9 +4,9 @@ import { apiClient } from '@/lib/api-client'
 import { API_ENDPOINTS } from '@/lib/api'
 import type { NewsItem, NewsListParams, NewsListResponse } from '@/types/news'
 
-// 👇 HÀM MAP DỮ LIỆU: Chuyển Backend (snake_case) -> Frontend (camelCase)
+// 👇 HÀM MAP DỮ LIU: Chuyển Backend (snake_case) -> Frontend (camelCase)
 const mapNewsItem = (item: any): NewsItem => {
-  // Xử lý tags: Backend trả về chuỗi "xăng,dầu", ta chuyển thành mảng ["xăng", "dầu"]
+  // Xử lý tags
   let tagsArray: string[] = [];
   if (item.tags && typeof item.tags === 'string') {
     tagsArray = item.tags.split(',').map((t: string) => t.trim()).filter((t: string) => t);
@@ -17,22 +17,22 @@ const mapNewsItem = (item: any): NewsItem => {
   return {
     id: item.id,
     slug: item.slug,
-    originalUrl: item.original_url || item.originalUrl, // Map link gốc
+    originalUrl: item.original_url || item.originalUrl,
 
     title: item.title,
     summary: item.summary,
     content: item.content,
-    imageUrl: item.image_url || item.imageUrl || '/assets/images/placeholder.png', // Map ảnh
+    imageUrl: item.image_url || item.imageUrl || '/assets/images/placeholder.png',
 
     category: item.category || 'Tin tức chung',
-    tags: tagsArray, // ✅ Đã xử lý thành mảng, Component không lo lỗi nữa
+    tags: tagsArray,
     author: item.author || 'Ban biên tập',
     source: item.source || 'Tổng hợp',
 
     views: item.views || 0,
     isPublished: item.is_published !== undefined ? item.is_published : true,
     
-    publishedAt: item.published_at || item.publishedAt, // Map ngày đăng
+    publishedAt: item.published_at || item.publishedAt,
     createdAt: item.created_at || item.createdAt,
   };
 };
@@ -59,18 +59,22 @@ export const newsService = {
       
       const endpoint = queryString ? `${baseUrl}?${queryString}` : baseUrl;
 
-      // Gọi API (Kiểu trả về là any để chúng ta tự map)
+      // Gọi API
       const response = await apiClient.get<any>(endpoint)
+      
+      // 👇 SỬA Ở ĐÂY: Ép kiểu sang 'any' để TypeScript không báo lỗi .total
+      const raw = response as any;
       
       let rawList: any[] = [];
       let total = 0;
 
-      if (Array.isArray(response)) {
-        rawList = response;
-        total = response.length;
-      } else if (response && Array.isArray(response.data)) {
-        rawList = response.data;
-        total = response.total || rawList.length;
+      if (Array.isArray(raw)) {
+        rawList = raw;
+        total = raw.length;
+      } else if (raw && Array.isArray(raw.data)) {
+        rawList = raw.data;
+        // TypeScript sẽ không báo lỗi dòng này nữa vì 'raw' là any
+        total = raw.total || rawList.length;
       }
 
       // Map toàn bộ danh sách
@@ -105,7 +109,12 @@ export const newsService = {
   async getNewsById(id: number | string): Promise<NewsItem> {
     try {
       const response = await apiClient.get<any>(API_ENDPOINTS.NEWS.DETAIL(id.toString()));
-      return mapNewsItem(response); // Map chi tiết
+      
+      // 👇 SỬA THÊM: An toàn hơn khi lấy chi tiết (unwrap data nếu có)
+      const raw = response as any;
+      const data = raw.data || raw;
+      
+      return mapNewsItem(data);
     } catch (error) {
       console.error(`Error fetching news ${id}:`, error)
       throw error

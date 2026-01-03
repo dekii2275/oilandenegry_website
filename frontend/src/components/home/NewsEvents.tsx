@@ -1,129 +1,137 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import { Swiper, SwiperSlide } from 'swiper/react'
+import { Autoplay, Pagination, Navigation } from 'swiper/modules'
 
-// Interface cho NewsItem
+import 'swiper/css'
+import 'swiper/css/pagination'
+import 'swiper/css/navigation'
+
+// ✅ Định nghĩa Interface khớp với file NewsPage (camelCase)
 interface NewsItem {
   id: number | string
   title: string
+  slug: string
+  imageUrl?: string    // 👈 Đổi từ image_url sang imageUrl
+  summary?: string     
   category?: string
-  excerpt?: string
-  description?: string
-  image?: string
-  image_url?: string
-  link?: string
-  slug?: string
-  created_at?: string
+  publishedAt?: string // 👈 Đổi từ published_at sang publishedAt
 }
 
 interface NewsEventsProps {
   newsData?: NewsItem[] | null
 }
 
-// Fallback data khi API chưa sẵn sàng
-const fallbackNews: NewsItem[] = [
-  {
-    id: 1,
-    title: 'Dự báo giá dầu thô quý 4: Những điều doanh nghiệp cần biết',
-    category: 'THỊ TRƯỜNG NĂNG LƯỢNG',
-    excerpt:
-      'Phân tích chi tiết về biến động nguồn cung và tác động địa chính trị đến giá dầu toàn cầu trong những tháng cuối năm.',
-    image: '/assets/images/1.png',
-    link: '#',
-  },
-  {
-    id: 2,
-    title: 'Đột phá mới trong công nghệ pin mặt trời hiệu suất cao',
-    category: 'CÔNG NGHỆ',
-    excerpt:
-      'Công nghệ PERC mới giúp tăng hiệu suất chuyển đổi năng lượng lên tới 25%, giảm chi phí đầu tư cho doanh nghiệp.',
-    image: '/assets/images/2.png',
-    link: '#',
-  },
-  {
-    id: 3,
-    title: 'Hội thảo Quốc tế về Năng lượng Sạch 2024',
-    category: 'SỰ KIỆN',
-    excerpt:
-      'Tham gia cùng các chuyên gia hàng đầu để thảo luận về lộ trình chuyển đổi xanh và cơ hội đầu tư bền vững.',
-    image: '/assets/images/3.png',
-    link: '#',
-  },
-]
-
 export default function NewsEvents({ newsData }: NewsEventsProps) {
-  // Sử dụng data từ props nếu có, nếu không thì dùng fallback
-  const news: NewsItem[] = newsData && newsData.length > 0 ? newsData : fallbackNews
+  const [displayNews, setDisplayNews] = useState<NewsItem[]>([])
+  const [domLoaded, setDomLoaded] = useState(false)
 
-  // Normalize data để đảm bảo có đủ các trường cần thiết
-  const normalizedNews = news.map((item) => ({
-    id: item.id,
-    title: item.title,
-    category: item.category || 'TIN TỨC',
-    excerpt: item.excerpt || item.description || '',
-    image: item.image || item.image_url || '/assets/images/logo.png',
-    link: item.link || (item.slug ? `/news/${item.slug}` : item.id ? `/news/${item.id}` : '#'),
-  }))
+  useEffect(() => {
+    setDomLoaded(true)
+    if (newsData && newsData.length > 0) {
+      // ✅ Xáo trộn ngẫu nhiên
+      const shuffled = [...newsData].sort(() => 0.5 - Math.random())
+      setDisplayNews(shuffled)
+    }
+  }, [newsData])
+
+  // ✅ Hàm xử lý ảnh giống hệt logic file NewsPage
+  const getImageUrl = (url?: string) => {
+    if (!url) return "/assets/images/placeholder.png"; // Dùng placeholder giống NewsPage
+    if (url.startsWith('http')) return url;
+    return `https://zenergy.cloud${url.startsWith('/') ? '' : '/'}${url}`;
+  };
+
+  if (!domLoaded || !displayNews || displayNews.length === 0) {
+    return null;
+  }
 
   return (
-    <section className="py-16 bg-white">
+    <section className="py-16 bg-white overflow-hidden">
       <div className="max-w-[1200px] mx-auto px-6">
-        {/* Header */}
         <div className="flex items-center justify-between mb-10">
-          <h2 className="text-2xl font-bold text-gray-900">
+          <h2 className="text-2xl font-bold text-gray-900 uppercase tracking-tight">
             Tin tức &amp; Sự kiện
           </h2>
-
-          <Link
-            href="/news"
-            className="text-emerald-600 hover:text-emerald-700 font-semibold text-sm"
-          >
-            Xem tất cả tin tức
+          <Link href="/news" className="text-emerald-600 hover:text-emerald-700 font-semibold text-sm">
+            Xem tất cả tin tức &rarr;
           </Link>
         </div>
 
-        {/* News list */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          {normalizedNews.map((item) => (
-            <Link key={item.id} href={item.link}>
-              <div className="group cursor-pointer">
-                {/* Image / Logo box */}
-                <div className="h-[150px] rounded-2xl bg-gray-200 overflow-hidden mb-4">
-                  <img
-                    src={item.image}
-                    alt={item.title}
-                    className="w-full h-full object-cover group-hover:scale-105 transition"
-                    onError={(e) => {
-                      // Fallback nếu ảnh không tải được
-                      const target = e.target as HTMLImageElement
-                      target.src = '/assets/images/logo.png'
-                    }}
-                  />
+        <Swiper
+          modules={[Autoplay, Pagination, Navigation]}
+          spaceBetween={24}
+          slidesPerView={1}
+          loop={displayNews.length >= 3}
+          autoplay={{
+            delay: 4000,
+            disableOnInteraction: false,
+          }}
+          pagination={{ clickable: true }}
+          navigation={true}
+          breakpoints={{
+            768: { slidesPerView: 2 },
+            1024: { slidesPerView: 3 },
+          }}
+          className="pb-16 news-swiper"
+        >
+          {displayNews.map((item) => (
+            <SwiperSlide key={item.id}>
+              <Link href={`/news/${item.slug}`} className="block h-full">
+                <div className="group flex flex-col h-[450px] bg-white rounded-2xl overflow-hidden border border-gray-100 hover:shadow-2xl transition-all duration-500">
+                  <div className="relative h-[200px] w-full shrink-0">
+                    {/* ✅ Sử dụng imageUrl (camelCase) khớp với Backend Service */}
+                    <img
+                      src={getImageUrl(item.imageUrl)} 
+                      alt={item.title}
+                      className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                      onError={(e) => {
+                        e.currentTarget.src = "/assets/images/placeholder.png";
+                      }}
+                    />
+                    <span className="absolute top-4 left-4 bg-emerald-600 text-white text-[10px] font-bold px-3 py-1 rounded-full uppercase">
+                      {item.category}
+                    </span>
+                  </div>
+
+                  <div className="p-6 flex flex-col flex-grow">
+                    <h3 className="text-lg font-bold text-gray-900 mb-3 line-clamp-2 group-hover:text-emerald-600">
+                      {item.title}
+                    </h3>
+                    <p className="text-gray-500 text-sm line-clamp-3 flex-grow">
+                      {item.summary}
+                    </p>
+                    <div className="pt-4 mt-auto border-t border-gray-100 flex items-center justify-between text-xs font-medium">
+                      <span className="text-gray-400">
+                        {item.publishedAt ? new Date(item.publishedAt).toLocaleDateString('vi-VN') : 'Mới nhất'}
+                      </span>
+                      <span className="text-emerald-600 font-bold">Đọc tiếp</span>
+                    </div>
+                  </div>
                 </div>
-
-                {/* Category */}
-                {item.category && (
-                  <p className="text-emerald-600 text-xs font-semibold uppercase mb-2">
-                    {item.category}
-                  </p>
-                )}
-
-                {/* Title */}
-                <h3 className="text-base font-bold text-gray-900 mb-2 leading-snug group-hover:text-emerald-600 transition line-clamp-2">
-                  {item.title}
-                </h3>
-
-                {/* Excerpt */}
-                {item.excerpt && (
-                  <p className="text-gray-600 text-sm leading-relaxed line-clamp-3">
-                    {item.excerpt}
-                  </p>
-                )}
-              </div>
-            </Link>
+              </Link>
+            </SwiperSlide>
           ))}
-        </div>
+        </Swiper>
       </div>
+
+      <style jsx global>{`
+        .news-swiper .swiper-button-next,
+        .news-swiper .swiper-button-prev {
+          color: #10b981 !important;
+          background: white;
+          width: 40px;
+          height: 40px;
+          border-radius: 50%;
+          box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+          transform: scale(0.6);
+        }
+        .news-swiper .swiper-pagination-bullet-active {
+          background: #10b981 !important;
+        }
+      `}</style>
     </section>
   )
 }

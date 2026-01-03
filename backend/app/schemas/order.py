@@ -1,84 +1,56 @@
-from pydantic import BaseModel
-from typing import List, Optional
-from datetime import datetime
+# app/schemas/order.py
+
+from pydantic import BaseModel, Field
+from typing import List, Literal, Optional
 from decimal import Decimal
-from app.models.order import OrderStatus, PaymentMethod, ShippingMethod
+from datetime import datetime
 
+# Định nghĩa phương thức thanh toán
+PaymentMethod = Literal["COD", "QR"]
+
+# --- 1. Schema cho việc TẠO đơn hàng (Dùng cho Buyer) ---
 class OrderCreate(BaseModel):
-    address_id: int
-    payment_method: str  # COD, BANK_TRANSFER, VNPAY, MOMO
-    shipping_method: str = "standard"
-    note: Optional[str] = None
-    voucher_code: Optional[str] = None
+    shipping_address: str = Field(..., min_length=5)
+    payment_method: PaymentMethod
 
-class OrderPreviewRequest(BaseModel):
-    address_id: int
-    shipping_method: str = "standard"
-    voucher_code: Optional[str] = None
-
-class OrderPreviewResponse(BaseModel):
-    subtotal: Decimal
-    discount: Decimal
-    shipping_fee: Decimal
-    total: Decimal
-    warnings: List[str] = []
-
-class OrderItemResponse(BaseModel):
-    id: int
+# --- 2. Schema hiển thị Item (Sản phẩm trong đơn) ---
+class OrderItemOut(BaseModel):
+    product_id: int
     product_name: str
-    variant_name: str
-    price: Decimal
+    store_id: int | None = None
+    store_name: str | None = None
     quantity: int
+    price: Decimal
     line_total: Decimal
-    
-    class Config:
-        from_attributes = True
 
-class OrderResponse(BaseModel):
-    order_id: int
+    # ✅ BẮT BUỘC CÓ: Để Pydantic đọc được dữ liệu từ SQLAlchemy model
+    class Config:
+        from_attributes = True 
+
+# --- 3. Schema hiển thị Đơn hàng (Chung hoặc cho Seller) ---
+class OrderOut(BaseModel):
+    order_id: int           # Frontend đang dùng order_id, Backend Order model dùng id (cần map hoặc đổi tên)
+    # Lưu ý: Nếu model Order của bạn có field là 'id', Pydantic nên để là 'id' hoặc dùng alias. 
+    # Nhưng để khớp với frontend code bạn gửi, mình sẽ giữ order_id và xử lý ở API.
+    
+    user_id: int
+    
+    # ✅ THÊM MỚI: Thông tin khách hàng cho Seller xem
+    customer_name: Optional[str] = "Khách vãng lai"
+    customer_phone: Optional[str] = None
+
     status: str
-    total: Decimal
-    created_at: datetime
-    items: List[OrderItemResponse] = []
-    
-    class Config:
-        from_attributes = True
-
-class OrderDetailResponse(OrderResponse):
-    address_id: int
     payment_method: str
-    shipping_method: str
-    subtotal: Decimal
-    discount: Decimal
-    shipping_fee: Decimal
-    note: Optional[str] = None
-    voucher_code: Optional[str] = None
-    payment_url: Optional[str] = None
-    
-    class Config:
-        from_attributes = True
-
-class SellerOrderItemResponse(BaseModel):
-    """Schema cho Seller xem order items"""
-    order_item_id: int
-    product_name: str
-    variant_name: str
-    price: Decimal
-    quantity: int
-    line_total: Decimal
-    
-    class Config:
-        from_attributes = True
-
-class SellerOrderSummary(BaseModel):
-    """Schema cho Seller xem danh sách đơn hàng"""
-    order_id: int
-    status: str
-    total: Decimal
+    shipping_address: str
     created_at: datetime
-    customer_email: str
-    customer_name: Optional[str] = None
-    items: List[SellerOrderItemResponse] = []
-    
+
+    subtotal: Decimal
+    shipping_fee: Decimal = Decimal(0)
+    tax: Decimal = Decimal(0)
+    total_amount: Decimal
+
+    items: List[OrderItemOut]
+
+    # ✅ BẮT BUỘC CÓ
     class Config:
         from_attributes = True

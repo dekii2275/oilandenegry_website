@@ -1,0 +1,380 @@
+"use client";
+
+import { useState, useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
+import { toast } from "react-hot-toast";
+import {
+  ProductDetail,
+  Review,
+  RelatedProduct,
+  ReviewFilter,
+  NewReview,
+} from "../components/types";
+
+import { useAuth } from "@/app/providers/AuthProvider";
+
+// 👇 KHÔNG dùng apiClient nữa để tránh lỗi Axios khi build
+// import { apiClient } from "@/lib/api-client";
+
+export const useProductDetail = (productId: string) => {
+  const router = useRouter();
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
+
+  const [product, setProduct] = useState<ProductDetail | null>(null);
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [relatedProducts, setRelatedProducts] = useState<RelatedProduct[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // UI state
+  const [selectedImage, setSelectedImage] = useState(0);
+  const [quantity, setQuantity] = useState(1);
+  const [activeTab, setActiveTab] = useState<
+    "description" | "specs" | "reviews" | "shipping"
+  >("description");
+  const [showWriteReview, setShowWriteReview] = useState(false);
+  const [newReview, setNewReview] = useState<NewReview>({
+    title: "",
+    comment: "",
+    rating: 5,
+  });
+  const [reviewFilter, setReviewFilter] = useState<ReviewFilter>({
+    rating: 0,
+    sortBy: "newest",
+  });
+  const [displayedReviews, setDisplayedReviews] = useState(3);
+  const [isInWishlist, setIsInWishlist] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const reviewsRef = useRef<HTMLDivElement>(null);
+
+  // Lấy URL từ biến môi trường hoặc fallback
+  const baseUrl = process.env.NEXT_PUBLIC_API_URL?.trim() || "https://zenergy.cloud/api";
+
+  // ============================================================================
+  // 1. FETCH PRODUCT DETAIL (Dùng Fetch thuần)
+  // ============================================================================
+  useEffect(() => {
+    const fetchProductDetail = async () => {
+      // Nếu không có ID thì thôi
+      if (!productId) return;
+
+      try {
+        setLoading(true);
+        setError(null);
+
+        // 👇 Dùng FETCH
+        const res = await fetch(`${baseUrl}/products/${productId}`, {
+            headers: { "Content-Type": "application/json" },
+            // credentials: "include", // Nếu API public thì không cần dòng này
+        });
+
+        if (!res.ok) {
+            if (res.status === 404) throw new Error("Không tìm thấy sản phẩm");
+            throw new Error("Lỗi kết nối Server");
+        }
+
+        const data = await res.json();
+
+        // 👇 Map dữ liệu (Khớp với cấu trúc JSON trả về)
+        const productFromApi: ProductDetail = {
+          id: data.id,
+          name: data.name,
+          brand: data.brand || data.store?.store_name || "No Brand",
+          price: Number(data.price ?? data.variants?.[0]?.price ?? 0),
+          oldPrice: Number(data.market_price ?? data.variants?.[0]?.market_price ?? 0),
+          rating: data.rating_average || 0,
+          reviewCount: data.review_count || 0,
+          unit: data.unit || "cái",
+          totalReviews: data.review_count || 0,
+          benefits: [],
+          status: data.is_active ? "CÓ SẴN" : "HẾT HÀNG",
+          // Xử lý ảnh: Backend có thể trả về string hoặc array
+          images: Array.isArray(data.images) 
+            ? data.images 
+            : (data.image_url ? [data.image_url] : ["https://via.placeholder.com/500"]),
+          
+          description: data.description || "Đang cập nhật mô tả...",
+          
+          technicalDetails: {
+            brand: data.brand || "Đang cập nhật",
+            model: data.variants?.[0]?.sku || "N/A",
+            warranty: data.warranty || "12 tháng",
+            origin: data.origin || "Việt Nam",
+          },
+          supplier: {
+            id: data.store?.id || 1,
+            name: data.store?.store_name || "Z-Energy Official",
+            logo: "/images/default-store.png",
+            slug: "z-energy-store",
+          },
+          specifications: data.specifications || {},
+          features: ["Bảo hành chính hãng", "Giao hàng toàn quốc", "Hỗ trợ kỹ thuật 24/7"],
+          sku: data.variants?.[0]?.sku || "N/A",
+          category: data.category?.name || "Công nghiệp", // Sửa nhẹ để lấy tên category
+        };
+
+        setProduct(productFromApi);
+
+        // Reset các state khác
+        setReviews([]);
+        setRelatedProducts([]);
+      } catch (err: any) {
+        console.error("Lỗi fetch detail:", err);
+        setError(err.message || "Không thể kết nối Server");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProductDetail();
+  }, [productId, baseUrl]);
+
+  // ---- auth helper ----
+  const checkAuthAndRedirect = (actionType: "buy-now" | "add-to-cart" | "wishlist") => {
+  if (authLoading) return false;
+
+  const token =
+    typeof window !== "undefined"
+      ? localStorage.getItem("access_token") ||
+        localStorage.getItem("accessToken") || // có thể bạn đang lưu camelCase
+        localStorage.getItem("zenergy_token") ||
+        localStorage.getItem("token") ||
+        (() => {
+          // fallback đọc cookie accessToken (HttpOnly=false nên đọc được)
+          const m = document.cookie.match(/(?:^|;\s*)accessToken=([^;]+)/);
+          return m ? decodeURIComponent(m[1]) : "";
+        })()
+      : "";
+
+  if (token) return true;
+
+  if (typeof window !== "undefined" && product) {
+    sessionStorage.setItem(
+      "pendingAction",
+      JSON.stringify({
+        type: actionType,
+        product: {
+          id: product.id,
+          name: product.name,
+          price: product.price,
+          quantity,
+        },
+        redirectUrl: window.location.href,
+      })
+    );
+  }
+
+  toast.error("Vui lòng đăng nhập để tiếp tục!", {
+    duration: 4000,
+    icon: "🔒",
+  });
+
+  if (typeof window !== "undefined") {
+    router.push(`/login?redirect=${encodeURIComponent(window.location.href)}`);
+  }
+
+  return false;
+};
+
+
+  // ---- helper: get default variantId ----
+  const getDefaultVariantId = async (pid: string) => {
+    // Dùng fetch để lấy lại variant ID
+    const res = await fetch(`${baseUrl}/products/${pid}`);
+    if(!res.ok) return undefined;
+    
+    const prodData = await res.json();
+    const variantId =
+      prodData?.variants?.[0]?.id ??
+      prodData?.variants?.[0]?.variant_id ??
+      prodData?.default_variant_id;
+    return variantId as number | string | undefined;
+  };
+
+  // ============================================================================
+  // 2. Add to cart (Dùng Fetch)
+  // ============================================================================
+  const handleAddToCart = async () => {
+    if (authLoading) return;
+    if (!checkAuthAndRedirect("add-to-cart")) return;
+
+    if (!product) {
+      toast.error("Không tìm thấy thông tin sản phẩm!", { duration: 3500, icon: "❌" });
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const variantId = await getDefaultVariantId(String(product.id));
+      if (!variantId) {
+        toast.error("Sản phẩm chưa có biến thể để thêm vào giỏ hàng!", {
+          duration: 4000,
+          icon: "❌",
+        });
+        return;
+      }
+
+      // 👇 Dùng FETCH POST (kèm credentials để gửi cookie)
+      const res = await fetch(`${baseUrl}/cart/items`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include", // 👈 QUAN TRỌNG: Gửi cookie Auth
+        body: JSON.stringify({ variant_id: variantId, quantity }),
+      });
+
+      if (!res.ok) {
+        if (res.status === 401) throw new Error("Unauthorized");
+        throw new Error("Failed to add to cart");
+      }
+
+      if (typeof window !== "undefined") window.dispatchEvent(new Event("cart-updated"));
+      toast.success("Đã thêm vào giỏ hàng!", { duration: 2500, icon: "🛒" });
+    } catch (err: any) {
+      console.error("Lỗi add-to-cart:", err);
+      if (err.message === "Unauthorized") {
+        toast.error("Vui lòng đăng nhập lại!", { duration: 3500, icon: "🔒" });
+        router.push("/login");
+      } else {
+        toast.error("Có lỗi xảy ra khi thêm vào giỏ hàng!", { duration: 4000, icon: "❌" });
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // ============================================================================
+  // 3. Buy now (Dùng Fetch)
+  // ============================================================================
+  const handleRequestQuote = async () => {
+    if (authLoading) return;
+    if (!checkAuthAndRedirect("buy-now")) return;
+
+    if (!product) return;
+
+    setIsLoading(true);
+    try {
+      const variantId = await getDefaultVariantId(String(product.id));
+      if (!variantId) {
+        toast.error("Sản phẩm chưa có biến thể!", { duration: 4000, icon: "❌" });
+        return;
+      }
+
+      const res = await fetch(`${baseUrl}/cart/items`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ variant_id: variantId, quantity }),
+      });
+
+      if (!res.ok) {
+          if (res.status === 401) throw new Error("Unauthorized");
+          throw new Error("Failed");
+      }
+
+      if (typeof window !== "undefined") window.dispatchEvent(new Event("cart-updated"));
+      toast.success("Đã thêm vào giỏ hàng!", { duration: 2500, icon: "✅" });
+      router.push("/cart/checkout");
+    } catch (err: any) {
+        console.error(err);
+        if (err.message === "Unauthorized") router.push("/login");
+        else toast.error("Lỗi hệ thống!", { duration: 4000, icon: "❌" });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // ============================================================================
+  // 4. Wishlist (Dùng Fetch)
+  // ============================================================================
+  const handleToggleWishlist = async () => {
+    if (authLoading) return;
+    if (!checkAuthAndRedirect("wishlist")) return;
+    if (!product) return;
+
+    setIsLoading(true);
+    try {
+      if (isInWishlist) {
+        // DELETE
+        await fetch(`${baseUrl}/wishlist/remove?product_id=${product.id}`, {
+            method: "DELETE",
+            credentials: "include"
+        });
+        setIsInWishlist(false);
+        toast.success("Đã xóa khỏi danh sách yêu thích", { duration: 2500, icon: "💔" });
+      } else {
+        // ADD
+        await fetch(`${baseUrl}/wishlist/add`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify({
+                product_id: product.id,
+                product_name: product.name,
+                price: product.price,
+                image: product.images?.[0],
+            })
+        });
+        setIsInWishlist(true);
+        toast.success("Đã thêm vào danh sách yêu thích", { duration: 2500, icon: "❤️" });
+      }
+    } catch (err: any) {
+      console.error("Lỗi wishlist:", err);
+      toast.error("Không thể thực hiện thao tác.", { duration: 3500, icon: "❌" });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // ---- UI helpers ----
+  const handleQuantityChange = (type: "increase" | "decrease") => {
+    if (type === "increase") setQuantity((prev) => prev + 1);
+    else if (type === "decrease" && quantity > 1) setQuantity((prev) => prev - 1);
+  };
+
+  const handleSubmitReview = () => {
+    toast.success("Cảm ơn đánh giá của bạn!", { duration: 2500 });
+    setShowWriteReview(false);
+  };
+
+  const loadMoreReviews = () => {
+    setDisplayedReviews((prev) => prev + 3);
+  };
+
+  const handleReviewScroll = () => {};
+
+  return {
+    product,
+    reviews,
+    relatedProducts,
+    loading,
+    error,
+    selectedImage,
+    quantity,
+    activeTab,
+    showWriteReview,
+    newReview,
+    loadingMoreReviews: false,
+    reviewFilter,
+    displayedReviews,
+    isInWishlist,
+    isLoading,
+    reviewsRef,
+
+    setSelectedImage,
+    handleQuantityChange,
+    setActiveTab,
+    setShowWriteReview,
+    setNewReview,
+    setReviewFilter,
+
+    handleRequestQuote,
+    handleAddToCart,
+    handleToggleWishlist,
+    loadMoreReviews,
+    handleSubmitReview,
+    handleReviewScroll,
+
+    sortedReviewsLength: reviews.length,
+  };
+};

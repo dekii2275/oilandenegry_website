@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { ShoppingCart } from "lucide-react";
-import apiClient from "@/lib/api-client";
+import { apiClient } from "@/lib/api-client";
 
 interface CartBadgeProps {
   showText?: boolean;
@@ -21,24 +21,30 @@ export default function CartBadge({
   useEffect(() => {
     const updateCartCount = async () => {
       try {
-        const res = await apiClient.get("/cart");
-        const items = res.data?.items || [];
+        const res = await apiClient.get<any>("/cart");
+        
+        // 👇 SỬA Ở ĐÂY: Ép kiểu 'res' sang 'any' để TypeScript không báo lỗi
+        const data = res as any;
+        const items = data?.items || data?.data?.items || [];
+
         const count = items.reduce(
           (sum: number, item: any) => sum + (item.quantity || 0),
           0
         );
         setCartCount(count);
       } catch (error) {
-        // Thường là chưa login hoặc lỗi mạng
+        // Thường là chưa login hoặc lỗi mạng -> Reset về 0
         setCartCount(0);
       } finally {
         setIsLoading(false);
       }
     };
-    void void updateCartCount();
+    
+    // Gọi hàm (dùng void để ignore promise floating)
+    void updateCartCount();
 
     const handleCartUpdate = () => {
-      void void updateCartCount();
+      void updateCartCount();
     };
 
     window.addEventListener("cart-updated", handleCartUpdate);

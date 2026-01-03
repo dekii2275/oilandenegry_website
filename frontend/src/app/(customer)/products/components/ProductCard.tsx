@@ -23,6 +23,14 @@ interface ProductCardProps {
   onAddToCart: (product: UIProduct) => void;
 }
 
+
+const formatVND = (value: any) =>
+  new Intl.NumberFormat("vi-VN", {
+    style: "currency",
+    currency: "VND",
+    maximumFractionDigits: 0,
+  }).format(Number(value) || 0);
+
 const ProductCard: React.FC<ProductCardProps> = ({ product, onAddToCart }) => {
   // 👉 Xác định loại sản phẩm/dịch vụ/dự án
   const isTransportService = product.category === "Vận tải & Logistics";
@@ -113,12 +121,12 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onAddToCart }) => {
 
   const formatPrice = () => {
     if (isTransportService) {
-      return `$${product.price?.toLocaleString()}/km`;
+      return `${formatVND(product.price)}/km`;
     }
     if (isProject) {
-      return `$${product.price?.toLocaleString()}`;
+      return `${formatVND(product.price)}`;
     }
-    return `$${product.price?.toLocaleString()}`;
+    return `${formatVND(product.price)}`;
   };
 
   const getUnitDisplay = () => {
@@ -262,7 +270,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onAddToCart }) => {
                 </span>
                 {product.oldPrice && !isTransportService && !isProject && (
                   <span className="text-sm text-gray-400 line-through">
-                    ${product.oldPrice.toLocaleString()}
+                    {formatVND(product.oldPrice)}
                   </span>
                 )}
               </div>

@@ -249,7 +249,7 @@ export default function PaymentSettings() {
     return new Intl.NumberFormat("vi-VN", {
       style: "currency",
       currency: "VND",
-    }).format(amount);
+      maximumFractionDigits: 0,}).format(amount);
   };
 
   const activeCards = cards.filter((card) => card.is_active);

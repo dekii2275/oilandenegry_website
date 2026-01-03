@@ -13,10 +13,10 @@ export const API_ENDPOINTS = {
   },
 
   MARKET: {
-    DATA: `/market-data/`, 
-    REFRESH_NOW: `/market-data/refresh-now`,
-    PRICES: `/market-data/prices`,
-    TRENDS: `/market-data/trends`
+    DATA: `/api/market-data/`, 
+    REFRESH_NOW: `/api/market-data/refresh-now`,
+    PRICES: `/api/market-data/prices`,
+    TRENDS: `/api/market-data/trends`
   },
 
   NEWS: {

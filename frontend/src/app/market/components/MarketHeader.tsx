@@ -5,28 +5,37 @@ import { RefreshCw, FileText, Home, TrendingUp, TrendingDown } from "lucide-reac
 import { MarketPrice } from "@/types/market";
 
 interface MarketHeaderProps {
-  data: MarketPrice[];
+  data: any[]; // Để any để xử lý linh hoạt từ API
 }
 
 export default function MarketHeader({ data }: MarketHeaderProps) {
   const lastUpdated = new Date().toLocaleTimeString("vi-VN", { hour: '2-digit', minute: '2-digit' });
 
-  // 👇 SỬA LOGIC TÌM KIẾM: Khớp chính xác với "name" trả về từ JSON
-  const brent = data.find(i => i.name === "BRENT");
-  const wti = data.find(i => i.name === "WTI");
-  const gas = data.find(i => i.name === "GAS");
-  const solar = data.find(i => i.name === "SOLAR");
+  // 👇 HÀM CHUẨN HÓA: Ép dữ liệu từ Backend sang chuẩn Component mong muốn
+  const normalizeData = (name: string, fallbackName: string) => {
+    const item = data.find(i => i.name?.toUpperCase() === name);
+    if (!item) return { id: name, name: fallbackName, price: 0, change: 0, percentChange: 0, isPositive: true };
+    
+    return {
+      id: item.id || name,
+      name: fallbackName,
+      // Map đúng tên thuộc tính từ API Python
+      price: item.price || 0,
+      change: item.change || 0,
+      percentChange: item.percent || 0, 
+      isPositive: item.status === 'up' || item.change >= 0
+    };
+  };
 
   const statsToShow = [
-    brent || { id: 'brent', name: "Dầu Brent", price: 0, change: 0, percentChange: 0, isPositive: true },
-    wti || { id: 'wti', name: "Dầu WTI", price: 0, change: 0, percentChange: 0, isPositive: true },
-    gas || { id: 'gas', name: "Khí tự nhiên", price: 0, change: 0, percentChange: 0, isPositive: true },
-    solar || { id: 'solar', name: "Năng lượng mặt trời", price: 0, change: 0, percentChange: 0, isPositive: true },
+    normalizeData("BRENT", "Dầu Brent"),
+    normalizeData("WTI", "Dầu WTI"),
+    normalizeData("GAS", "Khí tự nhiên"),
+    normalizeData("SOLAR", "Điện mặt trời"),
   ];
 
   return (
     <div className="flex flex-col gap-6 mb-8">
-      {/* ... Phần Header giữ nguyên ... */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <div className="flex items-center gap-2 text-xs text-gray-400 mb-2">
@@ -46,18 +55,17 @@ export default function MarketHeader({ data }: MarketHeaderProps) {
         </div>
       </div>
 
-      {/* --- PHẦN 4 Ô DỮ LIỆU --- */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {data.length === 0 ? (
+          // Hiển thị skeleton khi chưa có data
           [1, 2, 3, 4].map((i) => (
             <div key={i} className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm animate-pulse h-[120px]" />
           ))
         ) : (
-          statsToShow.map((stat, index) => (
-            <div key={stat.id || index} className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-all duration-200">
+          statsToShow.map((stat) => (
+            <div key={stat.id} className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-all duration-200">
               <div className="flex justify-between items-start mb-2">
                 <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">{stat.name}</span>
-                {/* 👇 SỬA percentChange: Sử dụng Math.abs để luôn hiển thị số dương cho % */}
                 <span className={`flex items-center text-xs font-bold px-2 py-1 rounded-full ${stat.isPositive ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'}`}>
                   {stat.isPositive ? <TrendingUp size={12} className="mr-1"/> : <TrendingDown size={12} className="mr-1"/>}
                   {Math.abs(stat.percentChange)}%
@@ -65,13 +73,12 @@ export default function MarketHeader({ data }: MarketHeaderProps) {
               </div>
               <div className="flex items-baseline gap-2 mt-3">
                 <span className="text-2xl font-extrabold text-gray-800">
-                  {/* 👇 HIỂN THỊ GIÁ: Sử dụng format để hiển thị đúng số từ JSON */}
-                  {stat.name === "Năng lượng mặt trời" ? stat.price : `$${stat.price}`}
+                  {stat.name.includes("mặt trời") ? stat.price.toLocaleString() : `$${stat.price.toFixed(2)}`}
                 </span>
               </div>
               <div className="mt-1 text-xs text-gray-400 font-medium">
                 Biến động: <span className={stat.isPositive ? "text-green-600" : "text-red-600"}>
-                  {stat.change > 0 ? `+${stat.change}` : stat.change}
+                  {stat.change >= 0 ? `+${stat.change}` : stat.change}
                 </span>
               </div>
             </div>

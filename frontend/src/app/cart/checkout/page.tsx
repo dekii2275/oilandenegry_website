@@ -1,5 +1,10 @@
 "use client";
 
+const formatVND = (value: number) =>
+  new Intl.NumberFormat("vi-VN").format(value) + " đ";
+
+
+
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -91,79 +96,98 @@ export default function CheckoutPage() {
   };
 
   const handlePlaceOrder = async () => {
-    // Validate customer info
-    if (!customerInfo.name.trim()) {
-      toast.error("Vui lòng nhập họ tên!", { icon: "✏️" });
+  try {
+    // 0) check form
+    const shippingAddress = (customerInfo?.address || "").trim();
+    if (shippingAddress.length < 5) {
+      toast.error("Vui lòng nhập địa chỉ giao hàng hợp lệ");
       return;
     }
-    if (!customerInfo.phone.trim()) {
-      toast.error("Vui lòng nhập số điện thoại!", { icon: "📱" });
-      return;
-    }
-    if (!customerInfo.address.trim()) {
-      toast.error("Vui lòng nhập địa chỉ giao hàng!", { icon: "📍" });
-      return;
-    }
+
+    // 0.1) đồng ý điều khoản (nếu bạn có UI checkbox này)
     if (!agreeTerms) {
-      toast.error("Vui lòng đồng ý với các điều khoản!", { icon: "📋" });
+      toast.error("Vui lòng đồng ý với điều khoản trước khi đặt hàng");
       return;
     }
 
     setIsProcessing(true);
 
-    try {
-      // Save customer info for next time
-      localStorage.setItem("zenergy_customer_info", JSON.stringify(customerInfo));
+    // 1) token
+    const token =
+      localStorage.getItem("access_token") ||
+      localStorage.getItem("token") ||
+      localStorage.getItem("zenergy_token") ||
+      localStorage.getItem("accessToken") ||
+      "";
 
-      // Create order data
-      const orderData = {
-        orderId: `ZNRG-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        customer: customerInfo,
-        items: checkoutData.items,
-        paymentMethod,
-        subtotal: checkoutData.subtotal,
-        shippingFee: checkoutData.shippingFee,
-        tax: checkoutData.tax,
-        total: checkoutData.total,
-        createdAt: new Date().toISOString(),
-        status: "pending",
-      };
-
-      // Save order to localStorage (simulating API call)
-      const existingOrders = JSON.parse(localStorage.getItem("zenergy_orders") || "[]");
-      existingOrders.push(orderData);
-      localStorage.setItem("zenergy_orders", JSON.stringify(existingOrders));
-
-      // Clear cart and checkout data
-      localStorage.removeItem("zenergy_cart");
-      localStorage.removeItem("zenergy_checkout");
-
-      // Dispatch cart update event
-      const event = new CustomEvent("cart-updated", {
-        detail: { count: 0, items: [] },
-      });
-      window.dispatchEvent(event);
-
-      // Show success message
-      toast.success(
-        <div>
-          <p className="font-bold">🎉 Đặt hàng thành công!</p>
-          <p className="text-sm">Mã đơn hàng: {orderData.orderId}</p>
-        </div>,
-        { duration: 8000, icon: "✅" }
-      );
-
-      // Redirect to confirmation page
-      setTimeout(() => {
-        router.push(`/cart/order-confirmation?orderId=${orderData.orderId}`);
-      }, 2000);
-    } catch (error) {
-      console.error("Error placing order:", error);
-      toast.error("Có lỗi xảy ra khi đặt hàng!", { duration: 5000, icon: "❌" });
-    } finally {
-      setIsProcessing(false);
+    if (!token) {
+      toast.error("Bạn cần đăng nhập trước khi đặt hàng");
+      router.push("/login");
+      return;
     }
-  };
+
+    // 2) payment method: FE -> BE
+    // bank_transfer (mã QR) -> QR
+    // cod -> COD
+    const pm = paymentMethod === "cod" ? "COD" : "QR";
+
+    const apiBase = process.env.NEXT_PUBLIC_API_URL || "/api";
+
+    // 3) call backend create order
+    const res = await fetch(`${apiBase}/orders/`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        shipping_address: shippingAddress,
+        payment_method: pm,
+      }),
+    });
+
+    const data = await res.json().catch(() => null);
+
+    if (!res.ok) {
+      toast.error(data?.detail || "Đặt hàng thất bại");
+      return;
+    }
+
+    const orderId = data?.order_id;
+    if (!orderId) {
+      toast.error("Không nhận được order_id từ server");
+      return;
+    }
+
+    // lưu lại 3 field customer info (đúng như bạn đang làm)
+    localStorage.setItem(
+      "zenergy_customer_info",
+      JSON.stringify({
+        name: customerInfo?.name || "",
+        phone: customerInfo?.phone || "",
+        address: shippingAddress,
+      })
+    );
+
+    toast.success("Đặt hàng thành công!");
+
+    // QR -> qua trang quét mã
+    if (pm === "QR") {
+      router.push(`/cart/qr-payment?orderId=${orderId}`);
+    } else {
+      // COD -> sang trang thành công luôn
+      router.push(`/cart/order-confirmation?orderId=${orderId}`);
+    }
+
+  } catch (e) {
+    console.error(e);
+    toast.error("Có lỗi xảy ra khi đặt hàng");
+  } finally {
+    setIsProcessing(false);
+  }
+};
+
+
 
   if (isLoading) {
     return (
@@ -350,11 +374,11 @@ export default function CheckoutPage() {
                     <div className="flex-1">
                       <p className="font-medium text-gray-800 line-clamp-1">{item.name}</p>
                       <p className="text-sm text-gray-500">
-                        {item.quantity} × ${item.price.toFixed(2)}
+                        {item.quantity} × {formatVND(item.price)}
                       </p>
                     </div>
                     <p className="font-bold text-gray-800">
-                      ${(item.price * item.quantity).toFixed(2)}
+                      {formatVND(item.price * item.quantity)}
                     </p>
                   </div>
                 ))}
@@ -365,26 +389,26 @@ export default function CheckoutPage() {
                 <div className="flex justify-between">
                   <span className="text-gray-600">Tạm tính</span>
                   <span className="font-bold text-gray-800">
-                    ${checkoutData.subtotal.toFixed(2)}
+                    {formatVND(checkoutData.subtotal)}
                   </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600">Phí vận chuyển</span>
                   <span className="font-bold text-gray-800">
-                    ${checkoutData.shippingFee.toFixed(2)}
+                    {formatVND(checkoutData.shippingFee)}
                   </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600">Thuế (VAT 10%)</span>
                   <span className="font-bold text-gray-800">
-                    ${checkoutData.tax.toFixed(2)}
+                    {formatVND(checkoutData.tax)}
                   </span>
                 </div>
                 <div className="border-t border-gray-200 pt-3">
                   <div className="flex justify-between">
                     <span className="text-lg font-bold text-gray-800">Tổng cộng</span>
                     <span className="text-2xl font-black text-green-600">
-                      ${checkoutData.total.toFixed(2)}
+                      {formatVND(checkoutData.total)}
                     </span>
                   </div>
                 </div>

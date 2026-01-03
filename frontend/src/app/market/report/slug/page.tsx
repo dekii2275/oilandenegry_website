@@ -23,6 +23,13 @@ import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 
 export default function ProductReportPage() {
+  const formatVND = (n: number) =>
+    new Intl.NumberFormat("vi-VN", {
+      style: "currency",
+      currency: "VND",
+      maximumFractionDigits: 0,
+    }).format(n);
+
   const params = useParams();
   const router = useRouter();
   const { isAuthenticated } = useAuth();
@@ -176,17 +183,15 @@ PRODUCT INFORMATION
 -------------------
 Product: ${product.name}
 Category: ${product.category}
-Current Price: $${
-      typeof product.price === "number"
+Current Price: ${formatVND(Number(typeof product.price === "number"
         ? product.price.toFixed(2)
-        : product.price
-    }
+        : product.price) || 0)}
 24h Change: ${product.changeFormatted || "N/A"}
 
 MARKET STATISTICS
 -----------------
-24h High: $${product.marketDetails?.high24h || 0}
-24h Low: $${product.marketDetails?.low24h || 0}
+24h High: ${formatVND(Number(product.marketDetails?.high24h || 0) || 0)}
+24h Low: ${formatVND(Number(product.marketDetails?.low24h || 0) || 0)}
 24h Volume: ${product.marketDetails?.volume || "N/A"}
 Market Cap: ${product.marketDetails?.marketCap || "N/A"}
 Avg Volume: ${product.marketDetails?.avgVolume || "N/A"}
@@ -196,14 +201,14 @@ TECHNICAL ANALYSIS
 Trend: ${product.isUp ? "BULLISH ↗" : "BEARISH ↘"}
 RSI (14): 52.3 (NEUTRAL)
 MACD: ${product.isUp ? "0.15 (BULLISH)" : "-0.08 (BEARISH)"}
-Support Level: $${(typeof product.price === "number"
+Support Level: ${formatVND((typeof product.price === "number"
       ? product.price * 0.95
       : 0
-    ).toFixed(2)}
-Resistance Level: $${(typeof product.price === "number"
+    ))}
+Resistance Level: ${formatVND((typeof product.price === "number"
       ? product.price * 1.05
       : 0
-    ).toFixed(2)}
+    ))}
 Volatility: 18.5%
 
 7-DAY FORECAST
@@ -455,11 +460,9 @@ Last Updated: ${
                   {[
                     {
                       label: "Giá hiện tại",
-                      value: `$${
-                        typeof product?.price === "number"
+                      value: `${formatVND(Number(typeof product?.price === "number"
                           ? product.price.toFixed(2)
-                          : product?.price
-                      }`,
+                          : product?.price) || 0)}`,
                     },
                     {
                       label: "Biến động 24h",
@@ -467,11 +470,11 @@ Last Updated: ${
                     },
                     {
                       label: "Cao nhất 24h",
-                      value: `$${product?.marketDetails?.high24h || 0}`,
+                      value: `${formatVND(Number(product?.marketDetails?.high24h || 0) || 0)}`,
                     },
                     {
                       label: "Thấp nhất 24h",
-                      value: `$${product?.marketDetails?.low24h || 0}`,
+                      value: `${formatVND(Number(product?.marketDetails?.low24h || 0) || 0)}`,
                     },
                     {
                       label: "Khối lượng",
@@ -559,19 +562,19 @@ Last Updated: ${
                 },
                 {
                   name: "Support Level",
-                  value: `$${(typeof product?.price === "number"
+                  value: `${formatVND((typeof product?.price === "number"
                     ? product.price * 0.95
                     : 0
-                  ).toFixed(2)}`,
+                  ))}`,
                   status: "support",
                   color: "text-purple-600",
                 },
                 {
                   name: "Resistance Level",
-                  value: `$${(typeof product?.price === "number"
+                  value: `${formatVND((typeof product?.price === "number"
                     ? product.price * 1.05
                     : 0
-                  ).toFixed(2)}`,
+                  ))}`,
                   status: "resistance",
                   color: "text-orange-600",
                 },

@@ -1,270 +1,266 @@
 "use client";
 
+import { useEffect, useState } from "react";
+import Cookies from "js-cookie";
+import { toast } from "react-hot-toast";
 import {
   Bell,
   Search,
-  Download,
   Filter,
+  Download,
   Calendar,
+  QrCode,
+  Truck,
+  Eye,
+  CheckCircle,
+  Loader2,
+  RefreshCcw
 } from "lucide-react";
 
 /**
  * =====================================
- * ADMIN - QUẢN LÝ ĐƠN HÀNG
+ * ADMIN - QUẢN LÝ ĐƠN HÀNG (REAL DATA)
  * =====================================
- *
- * 🔹 Frontend only
- * 🔹 Không xử lý logic
- * 🔹 Backend gắn:
- *    - danh sách đơn hàng
- *    - filter (status, date, seller, region)
- *    - xuất excel
- *    - phân trang
  */
 
-export default function AdminOrdersPage() {
-  return (
-    <div className="flex-1 bg-gray-100 flex flex-col">
-      {/* ================= HEADER ================= */}
-      <header className="h-16 bg-white border-b px-6 flex items-center justify-between">
-        <h1 className="font-semibold text-lg">Quản lý Đơn hàng</h1>
+interface Order {
+  order_id: number;
+  customer_name: string;
+  created_at: string;
+  total_amount: number;
+  payment_method: "QR" | "COD";
+  status: "PENDING" | "CONFIRMED" | "SHIPPING" | "COMPLETED" | "CANCELLED";
+  item_count: number;
+  shipping_address: string;
+}
 
-        <div className="flex items-center gap-4">
-          <div className="relative">
-            <Search className="w-4 h-4 absolute left-3 top-2.5 text-gray-400" />
-            <input
-              placeholder="Tìm đơn hàng..."
-              className="pl-9 pr-3 py-2 border rounded-lg text-sm"
-            />
-          </div>
-          <Bell className="w-5 h-5 text-gray-600" />
+export default function AdminOrdersPage() {
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<"ALL" | "QR" | "COD">("ALL");
+  const [keyword, setKeyword] = useState("");
+
+  // --- 1. GỌI API LẤY DANH SÁCH ---
+  const fetchOrders = async () => {
+    setLoading(true);
+    try {
+      const token = Cookies.get("adminToken");
+      const params = new URLSearchParams();
+      
+      // Filter logic
+      if (activeTab !== "ALL") params.append("payment_method", activeTab);
+      if (keyword) params.append("search", keyword);
+      params.append("limit", "100"); // Lấy 100 đơn mới nhất
+
+      const res = await fetch(`https://zenergy.cloud/api/admin/orders?${params.toString()}`, {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+
+      if (!res.ok) throw new Error("Lỗi tải đơn hàng");
+      
+      const data = await res.json();
+      setOrders(data.data); // Backend trả về { data: [], total: ... }
+    } catch (err) {
+      console.error(err);
+      toast.error("Không thể tải danh sách đơn hàng");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    // Debounce search
+    const timer = setTimeout(() => fetchOrders(), 500);
+    return () => clearTimeout(timer);
+  }, [activeTab, keyword]);
+
+  // --- 2. XỬ LÝ XÁC NHẬN THANH TOÁN (NÚT TICK) ---
+  const handleConfirmPayment = async (orderId: number) => {
+    if (!confirm(`Xác nhận đã nhận được tiền cho đơn #${orderId}?`)) return;
+
+    try {
+      const token = Cookies.get("adminToken");
+      const res = await fetch(`https://zenergy.cloud/api/admin/orders/${orderId}/confirm-payment`, {
+        method: "PUT",
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+
+      if (res.ok) {
+        toast.success(`Đơn #${orderId} đã được xác nhận thanh toán!`);
+        fetchOrders(); // Load lại danh sách
+      } else {
+        const err = await res.json();
+        toast.error(err.detail || "Lỗi khi xác nhận");
+      }
+    } catch (error) {
+      toast.error("Lỗi kết nối server");
+    }
+  };
+
+  // Helper format
+  const formatVND = (num: number) => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(num);
+  const formatDate = (date: string) => new Date(date).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute:'2-digit' });
+
+  return (
+    <div className="flex-1 bg-gray-50 flex flex-col h-screen overflow-hidden">
+      {/* HEADER */}
+      <header className="h-16 bg-white border-b px-6 flex items-center justify-between shrink-0">
+        <div>
+          <h1 className="font-bold text-xl text-gray-800">Quản lý Đơn hàng</h1>
+          <p className="text-xs text-gray-500">Kiểm soát dòng tiền và vận đơn</p>
         </div>
+        <button onClick={fetchOrders} className="p-2 hover:bg-gray-100 rounded-full" title="Làm mới">
+          <RefreshCcw className={`w-5 h-5 text-gray-600 ${loading ? 'animate-spin' : ''}`} />
+        </button>
       </header>
 
-      {/* ================= CONTENT ================= */}
-      <div className="p-6 space-y-6">
-        {/* ================= FILTER BAR ================= */}
-        <div className="bg-white rounded-xl p-4 space-y-3">
-          <div className="flex flex-wrap gap-3 items-center justify-between">
-            <div className="flex gap-2 flex-wrap">
-              <div className="relative">
-                <Search className="w-4 h-4 absolute left-3 top-2.5 text-gray-400" />
-                <input
-                  placeholder="Tìm theo ID, khách hàng..."
-                  className="pl-9 pr-3 py-2 border rounded-lg text-sm"
-                />
-              </div>
-
-              <button className="border px-3 py-2 rounded-lg text-sm">
-                Tất cả trạng thái
-              </button>
-
-              <button className="border px-3 py-2 rounded-lg text-sm flex items-center gap-1">
-                <Filter size={14} />
-                Bộ lọc nâng cao
-              </button>
-            </div>
-
-            <button className="flex items-center gap-2 border px-3 py-2 rounded-lg text-sm">
-              <Download size={16} />
-              Xuất Excel
-            </button>
-          </div>
-
-          <div className="grid grid-cols-4 gap-4">
-            <div>
-              <label className="text-xs text-gray-500">Khoảng thời gian</label>
-              <div className="relative">
-                <Calendar className="w-4 h-4 absolute left-3 top-2.5 text-gray-400" />
-                <input
-                  type="date"
-                  className="pl-9 pr-3 py-2 border rounded-lg text-sm w-full"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="text-xs text-gray-500">Nhà bán hàng</label>
-              <select className="w-full border px-3 py-2 rounded-lg text-sm">
-                <option>Tất cả nhà bán hàng</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="text-xs text-gray-500">Khu vực</label>
-              <select className="w-full border px-3 py-2 rounded-lg text-sm">
-                <option>Toàn quốc</option>
-              </select>
-            </div>
-
-            <div className="flex items-end">
-              <button className="w-full bg-green-500 text-white py-2 rounded-lg text-sm">
-                Áp dụng
-              </button>
-            </div>
-          </div>
+      {/* CONTENT */}
+      <div className="flex-1 overflow-auto p-6">
+        
+        {/* TABS */}
+        <div className="flex gap-4 mb-6 border-b border-gray-200">
+          <TabButton 
+            active={activeTab === "ALL"} 
+            onClick={() => setActiveTab("ALL")} 
+            label="Tất cả đơn hàng" 
+            count={orders.length}
+          />
+          <TabButton 
+            active={activeTab === "QR"} 
+            onClick={() => setActiveTab("QR")} 
+            label="Thanh toán QR (Cần duyệt)" 
+            icon={<QrCode size={16}/>}
+            colorClass="text-blue-600"
+            count={orders.filter(o => o.payment_method === 'QR').length}
+          />
+          <TabButton 
+            active={activeTab === "COD"} 
+            onClick={() => setActiveTab("COD")} 
+            label="COD (Thanh toán khi nhận)" 
+            icon={<Truck size={16}/>}
+            colorClass="text-orange-600"
+            count={orders.filter(o => o.payment_method === 'COD').length}
+          />
         </div>
 
-        {/* ================= ORDER LIST ================= */}
-        <div className="bg-white rounded-xl">
-          <div className="px-5 py-4 border-b">
-            <h2 className="font-semibold">
-              Danh sách đơn hàng tổng
-              <span className="text-sm text-gray-500 ml-2">
-                1,482
-                {/* TODO: backend -> total orders */}
-              </span>
-            </h2>
+        {/* SEARCH */}
+        <div className="bg-white rounded-xl p-4 mb-6 shadow-sm border border-gray-100 flex gap-4">
+          <div className="relative flex-1">
+            <Search className="w-4 h-4 absolute left-3 top-3 text-gray-400" />
+            <input
+              value={keyword}
+              onChange={(e) => setKeyword(e.target.value)}
+              placeholder="Tìm mã đơn, tên khách hàng..."
+              className="pl-9 pr-3 py-2.5 border border-gray-200 rounded-lg text-sm w-full focus:outline-none focus:border-green-500"
+            />
           </div>
+          <button className="flex items-center gap-2 border px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-50">
+            <Filter size={16} /> Bộ lọc
+          </button>
+        </div>
 
-          <table className="w-full text-sm">
-            <thead className="text-gray-500 bg-gray-50">
+        {/* TABLE */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+          <table className="w-full text-sm text-left">
+            <thead className="text-gray-500 bg-gray-50/50 border-b border-gray-100 font-medium">
               <tr>
-                <th className="py-3 px-4">
-                  <input type="checkbox" />
-                </th>
-                <th className="text-left py-3">ID Đơn hàng</th>
-                <th className="text-left py-3">Khách hàng</th>
-                <th className="text-left py-3">Nhà bán hàng</th>
-                <th className="text-left py-3">Ngày đặt</th>
-                <th className="text-left py-3">Tổng tiền</th>
-                <th className="text-left py-3">Trạng thái</th>
+                <th className="py-4 px-6">Mã đơn</th>
+                <th className="py-4 px-6">Khách hàng</th>
+                <th className="py-4 px-6">Thanh toán</th>
+                <th className="py-4 px-6">Tổng tiền</th>
+                <th className="py-4 px-6">Ngày đặt</th>
+                <th className="py-4 px-6">Trạng thái</th>
+                <th className="py-4 px-6 text-right">Thao tác</th>
               </tr>
             </thead>
-
-            <tbody>
-              <OrderRow
-                id="#ORD-2849"
-                customer="PetroVietnam"
-                seller="Energy Source Co."
-                date="24/10/2023"
-                time="14:30"
-                total="125.000.000 đ"
-                status="pending"
-              />
-              <OrderRow
-                id="#ORD-2848"
-                customer="Green Energy Corp"
-                seller="SolarTech Vietnam"
-                date="23/10/2023"
-                time="09:15"
-                total="84.500.000 đ"
-                status="completed"
-              />
-              <OrderRow
-                id="#ORD-2847"
-                customer="Logistic Fast"
-                seller="Dầu Khí Miền Đông"
-                date="22/10/2023"
-                time="11:00"
-                total="12.200.000 đ"
-                status="processing"
-              />
-              <OrderRow
-                id="#ORD-2846"
-                customer="Eco Farm"
-                seller="WindPower Solutions"
-                date="21/10/2023"
-                time="16:45"
-                total="450.000.000 đ"
-                status="cancelled"
-              />
-              <OrderRow
-                id="#ORD-2845"
-                customer="Hưng Phát Steel"
-                seller="Coal Mining Group"
-                date="20/10/2023"
-                time="08:00"
-                total="62.100.000 đ"
-                status="pending"
-              />
+            <tbody className="divide-y divide-gray-50">
+              {loading ? (
+                 <tr><td colSpan={7} className="py-12 text-center text-gray-400"><div className="flex justify-center gap-2"><Loader2 className="animate-spin"/> Đang tải...</div></td></tr>
+              ) : orders.length === 0 ? (
+                 <tr><td colSpan={7} className="py-12 text-center text-gray-400">Không tìm thấy đơn hàng nào.</td></tr>
+              ) : (
+                orders.map((order) => (
+                  <tr key={order.order_id} className="hover:bg-gray-50/80 transition-colors group">
+                    <td className="px-6 py-4 font-semibold text-gray-700">#{order.order_id}</td>
+                    <td className="px-6 py-4 font-medium">{order.customer_name}</td>
+                    <td className="px-6 py-4">
+                      {order.payment_method === "QR" ? (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-blue-50 text-blue-700 text-xs font-bold border border-blue-100">
+                          <QrCode size={14} /> QR Banking
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-orange-50 text-orange-700 text-xs font-bold border border-orange-100">
+                          <Truck size={14} /> COD
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 font-bold text-gray-800">{formatVND(order.total_amount)}</td>
+                    <td className="px-6 py-4 text-gray-500 text-xs">{formatDate(order.created_at)}</td>
+                    <td className="px-6 py-4"><StatusBadge status={order.status} /></td>
+                    
+                    {/* CỘT THAO TÁC */}
+                    <td className="px-6 py-4 text-right">
+                      <div className="flex justify-end gap-2">
+                        {/* 🔥 NÚT TICK QUAN TRỌNG: Chỉ hiện khi là QR + PENDING */}
+                        {order.status === "PENDING" && order.payment_method === "QR" && (
+                          <button 
+                            onClick={() => handleConfirmPayment(order.order_id)}
+                            className="p-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-600 hover:text-white transition-all shadow-sm" 
+                            title="Xác nhận đã nhận được tiền"
+                          >
+                            <CheckCircle size={18} />
+                          </button>
+                        )}
+                        
+                        <button className="p-2 border rounded-lg hover:bg-gray-100 text-gray-500" title="Xem chi tiết">
+                          <Eye size={18} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
-
-          {/* Pagination */}
-          <div className="flex items-center justify-between px-5 py-4 text-sm text-gray-500">
-            <span>
-              Hiển thị 1 đến 5 trong tổng số <b>1,482</b> đơn hàng
-            </span>
-
-            <div className="flex gap-2">
-              <button className="border px-3 py-1 rounded-lg">‹</button>
-              <button className="bg-green-500 text-white px-3 py-1 rounded-lg">
-                1
-              </button>
-              <button className="border px-3 py-1 rounded-lg">2</button>
-              <button className="border px-3 py-1 rounded-lg">›</button>
-            </div>
-          </div>
         </div>
       </div>
     </div>
   );
 }
 
-/* ================= COMPONENTS ================= */
-
-function OrderRow({
-  id,
-  customer,
-  seller,
-  date,
-  time,
-  total,
-  status,
-}: {
-  id: string;
-  customer: string;
-  seller: string;
-  date: string;
-  time: string;
-  total: string;
-  status: "pending" | "completed" | "processing" | "cancelled";
-}) {
-  const statusMap = {
-    pending: "bg-yellow-100 text-yellow-700",
-    completed: "bg-green-100 text-green-600",
-    processing: "bg-blue-100 text-blue-600",
-    cancelled: "bg-red-100 text-red-500",
-  };
-
-  const statusLabel = {
-    pending: "Chờ xử lý",
-    completed: "Hoàn thành",
-    processing: "Đang giao",
-    cancelled: "Đã huỷ",
-  };
-
+// Sub-components
+function TabButton({ active, onClick, label, icon, colorClass, count }: any) {
   return (
-    <tr className="border-t hover:bg-gray-50">
-      <td className="px-4">
-        <input type="checkbox" />
-      </td>
+    <button
+      onClick={onClick}
+      className={`pb-3 px-4 text-sm font-medium transition-all relative flex items-center gap-2 
+        ${active ? (colorClass || "text-green-600") : "text-gray-500 hover:text-gray-700"}`}
+    >
+      {icon} {label}
+      <span className="ml-1 bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded-full text-[10px]">{count}</span>
+      {active && <span className={`absolute bottom-0 left-0 w-full h-0.5 rounded-t-md ${active ? (colorClass?.replace('text-', 'bg-') || 'bg-green-600') : ''}`}></span>}
+    </button>
+  );
+}
 
-      <td className="font-medium text-green-600">{id}</td>
-
-      <td>
-        <p>{customer}</p>
-      </td>
-
-      <td>{seller}</td>
-
-      <td>
-        <p>{date}</p>
-        <p className="text-xs text-gray-400">{time}</p>
-      </td>
-
-      <td className="font-medium">{total}</td>
-
-      <td>
-        <span
-          className={`text-xs px-2 py-1 rounded-full ${
-            statusMap[status]
-          }`}
-        >
-          {statusLabel[status]}
-        </span>
-      </td>
-    </tr>
+function StatusBadge({ status }: { status: string }) {
+  const styles: any = {
+    PENDING: "bg-yellow-50 text-yellow-700 border-yellow-200",
+    CONFIRMED: "bg-blue-50 text-blue-700 border-blue-200",
+    SHIPPING: "bg-purple-50 text-purple-700 border-purple-200",
+    COMPLETED: "bg-green-50 text-green-700 border-green-200",
+    CANCELLED: "bg-red-50 text-red-700 border-red-200",
+  };
+  const labels: any = {
+    PENDING: "Chờ thanh toán", // Hoặc Chờ xử lý
+    CONFIRMED: "Đã xác nhận",
+    SHIPPING: "Đang giao",
+    COMPLETED: "Hoàn thành",
+    CANCELLED: "Đã hủy",
+  };
+  return (
+    <span className={`px-2.5 py-1 rounded-full text-xs font-bold border ${styles[status] || "bg-gray-100"}`}>
+      {labels[status] || status}
+    </span>
   );
 }

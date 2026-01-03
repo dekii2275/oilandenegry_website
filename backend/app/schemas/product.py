@@ -3,9 +3,7 @@ from typing import List, Optional, Dict, Any
 from datetime import datetime
 from decimal import Decimal
 
-# ========== 0. IMAGE SCHEMAS (MỚI) ==========
-# Dùng để hiển thị ảnh trong Gallery
-
+# ========== 0. IMAGE SCHEMAS ==========
 class ProductImageBase(BaseModel):
     image_url: str
     display_order: Optional[int] = 0
@@ -15,66 +13,36 @@ class ProductImageResponse(ProductImageBase):
     class Config:
         from_attributes = True
 
-# ========== 1. VARIANT SCHEMAS ==========
-
-class VariantCreate(BaseModel):
-    name: str
-    sku: Optional[str] = None
-    price: Decimal
-    market_price: Optional[Decimal] = None # 👇 Thêm giá gốc để tính % giảm giá
-    stock: int = 0
-    is_active: bool = True
-
-class VariantUpdate(BaseModel):
-    name: Optional[str] = None
-    sku: Optional[str] = None
-    price: Optional[Decimal] = None
-    market_price: Optional[Decimal] = None # 👇 Update cả giá gốc
-    stock: Optional[int] = None
-    is_active: Optional[bool] = None
-
-class VariantResponse(BaseModel):
-    id: int
-    product_id: int
-    name: str
-    sku: Optional[str] = None
-    price: Decimal
-    market_price: Optional[Decimal] = None
-    stock: int
-    is_active: bool
-    created_at: datetime
-    updated_at: Optional[datetime] = None
-    
-    class Config:
-        from_attributes = True
-
-# ========== 2. PRODUCT SCHEMAS ==========
+# ========== 1. PRODUCT SCHEMAS (ĐÃ CẬP NHẬT) ==========
 
 class ProductBase(BaseModel):
     name: str
     description: Optional[str] = None
     category: Optional[str] = None
-    
-    # 👇 CÁC TRƯỜNG MỚI BỔ SUNG
     brand: Optional[str] = None
     origin: Optional[str] = None
     warranty: Optional[str] = None
     unit: Optional[str] = None
     image_url: Optional[str] = None  # Ảnh đại diện (Thumbnail)
-    tags: Optional[List[str]] = None # JSON trong DB -> List trong Python
-    specifications: Optional[Dict[str, Any]] = None # JSON -> Dict
+    tags: Optional[List[str]] = None 
+    specifications: Optional[Dict[str, Any]] = None 
     is_active: bool = True
 
 class ProductCreate(ProductBase):
-    # 👇 Seller gửi lên danh sách URL ảnh gallery (List String)
+    # ✅ BỔ SUNG CÁC TRƯỜNG NÀY ĐỂ FIX LỖI 500
+    # Đây là các trường Frontend gửi lên thay cho bảng Variant cũ
+    price: Decimal
+    market_price: Optional[Decimal] = None
+    stock: int = 0
+    sku: Optional[str] = None
+    
+    # Danh sách URL ảnh gallery
     images: Optional[List[str]] = [] 
 
 class ProductUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
     category: Optional[str] = None
-    
-    # Update các trường mới
     brand: Optional[str] = None
     origin: Optional[str] = None
     warranty: Optional[str] = None
@@ -84,43 +52,39 @@ class ProductUpdate(BaseModel):
     specifications: Optional[Dict[str, Any]] = None
     is_active: Optional[bool] = None
     
-    # 👇 Gửi danh sách mới để ghi đè gallery cũ
+    # ✅ Cập nhật cả giá và kho nếu cần
+    price: Optional[Decimal] = None
+    market_price: Optional[Decimal] = None
+    stock: Optional[int] = None
+    sku: Optional[str] = None
+    
     images: Optional[List[str]] = None 
 
 class ProductResponse(ProductBase):
     id: int
     store_id: int
-    # Các trường trong ProductBase đã tự động có ở đây (name, brand, unit...)
+    
+    # ✅ Trả về giá và kho trực tiếp trong Product
+    price: Optional[Decimal] = None
+    market_price: Optional[Decimal] = None
+    stock: int = 0
+    sku: Optional[str] = None
+    
+    rating_average: float = 0.0
+    review_count: int = 0
     
     created_at: datetime
     updated_at: Optional[datetime] = None
     
-    variants: List[VariantResponse] = []
-    images: List[ProductImageResponse] = [] # 👇 Trả về danh sách object ảnh
+    # Đã xóa variants, chỉ giữ lại gallery ảnh
+    images: List[ProductImageResponse] = [] 
     
     class Config:
         from_attributes = True
 
-# Update forward reference
-ProductResponse.model_rebuild()
-
-# ========== 3. PUBLIC SCHEMAS (CHO KHÁCH HÀNG) ==========
-
-class VariantPublicResponse(BaseModel):
-    """Schema cho Customer xem variants"""
-    id: int
-    product_id: int
-    name: str
-    price: Decimal
-    market_price: Optional[Decimal] = None # Khách cần thấy giá gốc để biết giảm bao nhiêu
-    stock: int
-    is_active: bool
-    
-    class Config:
-        from_attributes = True
+# ========== 2. PUBLIC SCHEMAS (CHO KHÁCH HÀNG) ==========
 
 class ProductPublicResponse(BaseModel):
-    """Schema cho Customer xem products (public)"""
     id: int
     store_id: int
     store_name: Optional[str] = None
@@ -128,22 +92,24 @@ class ProductPublicResponse(BaseModel):
     name: str
     description: Optional[str] = None
     category: Optional[str] = None
-    
-    # Hiển thị thông tin chi tiết cho khách
     brand: Optional[str] = None
     origin: Optional[str] = None
     unit: Optional[str] = None
     image_url: Optional[str] = None
+    
+    # ✅ Hiển thị giá và kho trực tiếp cho khách
+    price: Decimal = Decimal(0)
+    market_price: Optional[Decimal] = None
+    stock: int = 0
+    
+    rating_average: float = 0.0
+    review_count: int = 0
+    
     tags: Optional[List[str]] = None
     specifications: Optional[Dict[str, Any]] = None
     
     created_at: datetime
-    
-    variants: List[VariantPublicResponse] = []
-    images: List[ProductImageResponse] = [] # Khách xem được gallery ảnh
+    images: List[ProductImageResponse] = [] 
     
     class Config:
         from_attributes = True
-
-# Update forward reference
-ProductPublicResponse.model_rebuild()

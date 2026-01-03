@@ -21,6 +21,14 @@ import Footer from "@/components/home/Footer";
 import { toast } from "react-hot-toast";
 
 export default function MarketReportPage() {
+  const USD_TO_VND = 25000;
+  const formatVND = (n: number) =>
+    new Intl.NumberFormat("vi-VN", {
+      style: "currency",
+      currency: "VND",
+      maximumFractionDigits: 0,
+    }).format(n);
+
   const [dateRange, setDateRange] = useState("thang-nay");
   const [format, setFormat] = useState("pdf");
   const [isGenerating, setIsGenerating] = useState(false);
@@ -129,10 +137,10 @@ export default function MarketReportPage() {
       
       TỔNG QUAN THỊ TRƯỜNG
       -------------------
-      • Giá dầu thô: $${(80 + Math.random() * 10).toFixed(2)}/thùng
-      • Giá khí tự nhiên: $${(3 + Math.random() * 1).toFixed(2)}/MMBtu
-      • Giá điện: $${(0.12 + Math.random() * 0.05).toFixed(2)}/kWh
-      • Giá năng lượng tái tạo: $${(0.08 + Math.random() * 0.03).toFixed(2)}/kWh
+      • Giá dầu thô: ${formatVND((80 + Math.random() * 10) * USD_TO_VND)}/thùng
+      • Giá khí tự nhiên: ${formatVND((3 + Math.random() * 1) * USD_TO_VND)}/MMBtu
+      • Giá điện: ${formatVND((0.12 + Math.random() * 0.05) * USD_TO_VND)}/kWh
+      • Giá năng lượng tái tạo: ${formatVND((0.08 + Math.random() * 0.03) * USD_TO_VND)}/kWh
       
       XU HƯỚNG THỊ TRƯỜNG
       -------------------
@@ -146,14 +154,14 @@ export default function MarketReportPage() {
       • MACD: ${Math.random() > 0.5 ? "+" : "-"}${(Math.random() * 0.5).toFixed(
       3
     )}
-      • Hỗ trợ chính: $${(70 + Math.random() * 5).toFixed(2)}
-      • Kháng cự chính: $${(90 + Math.random() * 5).toFixed(2)}
+      • Hỗ trợ chính: ${formatVND((70 + Math.random() * 5) * USD_TO_VND)}
+      • Kháng cự chính: ${formatVND((90 + Math.random() * 5) * USD_TO_VND)}
       
       KHUYẾN NGHỊ
       -----------
       • Rủi ro: ${["Thấp", "Trung bình", "Cao"][Math.floor(Math.random() * 3)]}
       • Khuyến nghị: ${["Mua", "Nắm giữ", "Bán"][Math.floor(Math.random() * 3)]}
-      • Mục tiêu giá: $${(85 + Math.random() * 10).toFixed(2)}
+      • Mục tiêu giá: ${formatVND((85 + Math.random() * 10) * USD_TO_VND)}
       
       -------------------------------
       Báo cáo được tạo bởi Z-Energy Analytics

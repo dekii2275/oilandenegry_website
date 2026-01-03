@@ -4,7 +4,7 @@
 
 import { apiClient } from '@/lib/api-client'
 import { API_ENDPOINTS } from '@/lib/api'
-import type { Category, CategoryListResponse } from '@/types/category'
+import type { Category } from '@/types/category'
 
 export const categoriesService = {
   /**
@@ -12,16 +12,26 @@ export const categoriesService = {
    */
   async getCategories(): Promise<Category[]> {
     try {
-      const response = await apiClient.get<CategoryListResponse | Category[]>(
+      // 👇 SỬA 1: Dùng <any> để bypass kiểm tra type ban đầu
+      const response = await apiClient.get<any>(
         API_ENDPOINTS.CATEGORIES.LIST
       )
       
-      // Hỗ trợ cả array response và object response
-      if (Array.isArray(response)) {
-        return response
+      // 👇 SỬA 2: Ép kiểu sang any để kiểm tra linh hoạt
+      const raw = response as any;
+
+      // Trường hợp 1: API trả về mảng trực tiếp (interceptor đã xử lý)
+      if (Array.isArray(raw)) {
+        return raw as Category[];
       }
       
-      return response.data || []
+      // Trường hợp 2: API trả về object có chứa data (Axios chuẩn)
+      if (raw.data && Array.isArray(raw.data)) {
+        return raw.data as Category[];
+      }
+      
+      // Fallback: Trả về mảng rỗng nếu không tìm thấy dữ liệu
+      return []
     } catch (error) {
       console.error('Error fetching categories:', error)
       throw error
@@ -33,11 +43,15 @@ export const categoriesService = {
    */
   async getCategoryById(id: number | string): Promise<Category> {
     try {
-      return await apiClient.get<Category>(API_ENDPOINTS.CATEGORIES.DETAIL(Number(id)))
+      // 👇 SỬA 3: Áp dụng tương tự cho chi tiết để tránh lỗi tiềm ẩn
+      const response = await apiClient.get<any>(API_ENDPOINTS.CATEGORIES.DETAIL(Number(id)))
+      const raw = response as any;
+      
+      // Ưu tiên lấy trong .data, nếu không thì lấy chính nó
+      return (raw.data || raw) as Category;
     } catch (error) {
       console.error(`Error fetching category ${id}:`, error)
       throw error
     }
   },
 }
-

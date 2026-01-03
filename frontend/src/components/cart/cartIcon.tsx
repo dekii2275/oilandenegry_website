@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { ShoppingCart } from "lucide-react";
-import apiClient from "@/lib/api-client";
+import { apiClient } from "@/lib/api-client";
 
 export default function CartIcon() {
   const [cartCount, setCartCount] = useState(0);
@@ -12,8 +12,12 @@ export default function CartIcon() {
   useEffect(() => {
     const updateCartCount = async () => {
       try {
-        const res = await apiClient.get("/cart");
-        const items = res.data?.items || [];
+        const res = await apiClient.get<any>("/cart");
+        
+        // 👇 SỬA Ở ĐÂY: Ép kiểu 'res' sang 'any'
+        const data = res as any;
+        const items = data?.items || data?.data?.items || [];
+
         const count = items.reduce(
           (sum: number, item: any) => sum + (item.quantity || 0),
           0
@@ -26,10 +30,12 @@ export default function CartIcon() {
         setIsLoading(false);
       }
     };
-    void void updateCartCount();
+    
+    // Dùng void để ignore promise floating
+    void updateCartCount();
 
     const handleCartUpdate = () => {
-      void void updateCartCount();
+      void updateCartCount();
     };
 
     window.addEventListener("cart-updated", handleCartUpdate);

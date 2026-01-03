@@ -112,7 +112,7 @@ export default function ChartSection({ product }: ChartSectionProps) {
             />
             <Tooltip
               formatter={(value) => [
-                `$${Number(value).toLocaleString("en-US", {
+                `$${Number(value).toLocaleString("vi-VN", {
                   minimumFractionDigits: 2,
                   maximumFractionDigits: 2,
                 })}`,

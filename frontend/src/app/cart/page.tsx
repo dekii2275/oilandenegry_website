@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import apiClient from "@/lib/api-client";
+import { apiClient } from "@/lib/api-client";
 import {
   ShoppingCart,
   ArrowLeft,
@@ -23,36 +23,113 @@ import Header from "@/components/home/Header";
 import Footer from "@/components/home/Footer";
 import { toast } from "react-hot-toast";
 
+// UI CartItem (theo component đang dùng)
 interface CartItem {
-  id: string;
+  id: string; // map từ cart_item_id
   name: string;
   price: number;
   quantity: number;
   image?: string;
-  unit: string;
-  category: string;
+  unit?: string;
+  category?: string;
   location?: string;
-  slug: string;
+  slug?: string;
   maxStock?: number;
+  product_id?: number;
+  variant_id?: number | null;
+  variant_name?: string | null;
+  line_total?: number;
+  in_stock?: boolean;
 }
+
+// Response từ backend /api/cart/
+type BackendCartResponse = {
+  cart_id: number;
+  subtotal: string;
+  items: Array<{
+    cart_item_id: number;
+    product_id: number;
+    name: string;
+    price: string;
+    quantity: number;
+    line_total: string;
+    in_stock: boolean;
+    variant_id: number | null;
+    variant_name: string | null;
+    [k: string]: any;
+  }>;
+};
 
 export default function CartPage() {
   const router = useRouter();
+
+  const formatVND = (value: number) =>
+    new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND" }).format(value);
+
 
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState(true);
   const [isUpdating, setIsUpdating] = useState(false);
 
+  const fetchCart = async () => {
+    try {
+      setIsLoading(true);
 
-    // ---------- load cart (DB) ------
+      // QUAN TRỌNG: gọi /cart/ (có slash) để tránh redirect
+      const res = await apiClient.get<BackendCartResponse>("/cart/");
+
+      // tùy apiClient trả shape {data} hay trực tiếp
+      const data: BackendCartResponse | undefined = (res as any)?.data ?? (res as any);
+      const items = data?.items ?? [];
+
+      // map backend -> UI shape
+      const mapped: CartItem[] = items.map((it) => ({
+        id: String(it.cart_item_id),
+        name: it.name,
+        price: Number(it.price ?? 0),
+        quantity: Number(it.quantity ?? 0),
+        product_id: it.product_id,
+        variant_id: it.variant_id,
+        variant_name: it.variant_name,
+        line_total: Number(it.line_total ?? 0),
+        in_stock: it.in_stock,
+
+        // optional fields (nếu backend chưa có thì để default hợp lý để UI không bị “trống tag”)
+        image: (it as any).image ?? (it as any).image_url ?? undefined,
+        unit: (it as any).unit ?? "sp",
+        category: (it as any).category ?? "Sản phẩm",
+        location: (it as any).location ?? "",
+        slug: (it as any).slug ?? "",
+        maxStock: (it as any).maxStock ?? (it as any).max_stock ?? undefined,
+      }));
+
+      setCartItems(mapped);
+
+      // giữ lại selectedIds hợp lệ
+      setSelectedIds((prev) => {
+        const alive = new Set(mapped.map((m) => m.id));
+        const next = new Set<string>();
+        for (const id of prev) if (alive.has(id)) next.add(id);
+        return next;
+      });
+    } catch (e) {
+      console.error("fetchCart failed:", e);
+      setCartItems([]);
+      setSelectedIds(new Set());
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   useEffect(() => {
     fetchCart();
     const onCartUpdated = () => fetchCart();
     window.addEventListener("cart-updated", onCartUpdated);
     return () => window.removeEventListener("cart-updated", onCartUpdated);
   }, []);
-// ---------- selection ----------
+
+  // ---------- selection ----------
   const toggleSelect = (id: string) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
@@ -77,7 +154,7 @@ export default function CartPage() {
   // ---------- money (theo items đã tick) ----------
   const totalItems = selectedItems.reduce((sum, item) => sum + item.quantity, 0);
   const subtotal = selectedItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
-  const shippingFee = totalItems > 0 ? 50 : 0;
+  const shippingFee = totalItems > 0 ? 50000 : 0;
   const tax = subtotal * 0.1;
   const total = subtotal + shippingFee + tax;
 
@@ -95,6 +172,7 @@ export default function CartPage() {
       setIsUpdating(false);
     }
   };
+
   const removeItem = async (cartItemId: number) => {
     setIsUpdating(true);
     try {
@@ -107,12 +185,13 @@ export default function CartPage() {
       setIsUpdating(false);
     }
   };
+
   const clearCart = async () => {
-    if (!items.length) return;
+    if (!cartItems.length) return;
     setIsUpdating(true);
     try {
-      for (const it of items) {
-        await apiClient.delete(`/cart/items/${it.id}`);
+      for (const it of cartItems) {
+        await apiClient.delete(`/cart/items/${Number(it.id)}`);
       }
       await fetchCart();
     } catch (e) {
@@ -122,7 +201,8 @@ export default function CartPage() {
       setIsUpdating(false);
     }
   };
-  // ✅ Checkout: chỉ lưu món đã tick
+
+  // Checkout: chỉ dùng món đã tick
   const handleCheckout = () => {
     if (selectedItems.length === 0) {
       toast.error("Bạn chưa chọn sản phẩm nào để thanh toán!", {
@@ -132,6 +212,7 @@ export default function CartPage() {
       return;
     }
 
+    // 1. Chuẩn bị dữ liệu thanh toán
     const checkoutData = {
       items: selectedItems,
       subtotal,
@@ -141,7 +222,11 @@ export default function CartPage() {
       createdAt: new Date().toISOString(),
     };
 
-        router.push("/cart/checkout");
+    // ✅ 2. BẮT BUỘC: Lưu vào LocalStorage để trang /checkout có thể đọc được
+    localStorage.setItem("zenergy_checkout", JSON.stringify(checkoutData));
+
+    // 3. Chuyển hướng sang trang thanh toán
+    router.push("/cart/checkout");
   };
 
   // ---------- UI ----------
@@ -294,9 +379,7 @@ export default function CartPage() {
                               </div>
 
                               <div className="mt-3">
-                                <div className="text-2xl font-black text-gray-900">
-                                  ${item.price.toLocaleString("en-US", { minimumFractionDigits: 2 })}
-                                </div>
+                                <div className="text-2xl font-black text-gray-900">{formatVND(item.price)}</div>
                                 <div className="text-xs text-gray-500">/{item.unit}</div>
                               </div>
 
@@ -314,7 +397,7 @@ export default function CartPage() {
                           <div className="flex items-center border border-gray-200 rounded-xl overflow-hidden">
                             <button
                               className="p-2 hover:bg-gray-50 disabled:opacity-50"
-                              onClick={() => updateQuantity(item.id, item.quantity - 1)}
+                              onClick={() => updateQuantity(Number(item.id), item.quantity - 1)}
                               disabled={isUpdating || item.quantity <= 1}
                               aria-label="Giảm số lượng"
                             >
@@ -327,7 +410,7 @@ export default function CartPage() {
 
                             <button
                               className="p-2 hover:bg-gray-50 disabled:opacity-50"
-                              onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                              onClick={() => updateQuantity(Number(item.id), item.quantity + 1)}
                               disabled={isUpdating || isMaxed}
                               aria-label="Tăng số lượng"
                             >
@@ -336,7 +419,7 @@ export default function CartPage() {
                           </div>
 
                           <button
-                            onClick={() => removeItem(item.id)}
+                            onClick={() => removeItem(Number(item.id))}
                             disabled={isUpdating}
                             className="p-2 rounded-xl text-red-500 hover:bg-red-50 disabled:opacity-50"
                             aria-label="Xóa sản phẩm"
@@ -403,24 +486,21 @@ export default function CartPage() {
                 <div className="flex justify-between items-center py-2">
                   <span className="text-gray-600">Tạm tính ({selectedItems.length} sản phẩm)</span>
                   <span className="font-bold text-gray-800">
-                    $
-                    {subtotal.toLocaleString("en-US", {
-                      minimumFractionDigits: 2,
-                    })}
+                    {formatVND(subtotal)}
                   </span>
                 </div>
 
                 <div className="flex justify-between items-center py-2">
                   <span className="text-gray-600">Phí vận chuyển</span>
                   <span className="font-bold text-gray-800">
-                    {shippingFee > 0 ? `$${shippingFee.toFixed(2)}` : "Miễn phí"}
+                    {shippingFee > 0 ? formatVND(shippingFee) : "Miễn phí"}
                   </span>
                 </div>
 
                 <div className="flex justify-between items-center py-2">
                   <span className="text-gray-600">Thuế (VAT 10%)</span>
                   <span className="font-bold text-gray-800">
-                    ${tax.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                    {formatVND(tax)}
                   </span>
                 </div>
 
@@ -428,10 +508,7 @@ export default function CartPage() {
                   <div className="flex justify-between items-center">
                     <span className="text-lg font-bold text-gray-800">Tổng cộng</span>
                     <span className="text-2xl font-black text-green-600">
-                      $
-                      {total.toLocaleString("en-US", {
-                        minimumFractionDigits: 2,
-                      })}
+                      {formatVND(total)}
                     </span>
                   </div>
                 </div>

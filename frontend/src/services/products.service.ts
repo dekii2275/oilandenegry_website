@@ -28,15 +28,27 @@ export const productsService = {
         ? `${API_ENDPOINTS.PRODUCTS.LIST}?${queryString}`
         : API_ENDPOINTS.PRODUCTS.LIST
 
-      // Hỗ trợ cả array response và object response
-      const response = await apiClient.get<ProductListResponse | Product[]>(endpoint)
-      
-      // Nếu là array, wrap vào object
-      if (Array.isArray(response)) {
-        return { data: response }
+      // 👇 SỬA 1: Dùng <any> và ép kiểu để xử lý linh hoạt
+      const response = await apiClient.get<any>(endpoint)
+      const raw = response as any;
+
+      // Trường hợp 1: API trả về mảng trực tiếp (đã qua interceptor)
+      if (Array.isArray(raw)) {
+        return { data: raw } as ProductListResponse
+      }
+
+      // Trường hợp 2: API trả về AxiosResponse chuẩn (data nằm trong .data)
+      // Kiểm tra xem raw.data là mảng hay object
+      if (raw.data) {
+        if (Array.isArray(raw.data)) {
+           return { data: raw.data } as ProductListResponse
+        }
+        // Nếu raw.data là object dạng { data: [...] }
+        return raw.data as ProductListResponse
       }
       
-      return response
+      // Fallback: Nếu raw chính là object { data: [...] }
+      return raw as ProductListResponse
     } catch (error) {
       console.error('Error fetching products:', error)
       throw error
@@ -48,7 +60,12 @@ export const productsService = {
    */
   async getProductById(id: number | string): Promise<Product> {
     try {
-      return await apiClient.get<Product>(API_ENDPOINTS.PRODUCTS.DETAIL(Number(id)))
+      // 👇 SỬA 2: Ép kiểu any để lấy data an toàn
+      const response = await apiClient.get<any>(API_ENDPOINTS.PRODUCTS.DETAIL(Number(id)))
+      const raw = response as any;
+      
+      // Ưu tiên lấy .data nếu có (Axios chuẩn), nếu không thì lấy chính nó (Interceptor)
+      return (raw.data || raw) as Product;
     } catch (error) {
       console.error(`Error fetching product ${id}:`, error)
       throw error
@@ -70,15 +87,24 @@ export const productsService = {
         })
       }
 
-      const response = await apiClient.get<ProductListResponse | Product[]>(
+      // 👇 SỬA 3: Logic tương tự getProducts
+      const response = await apiClient.get<any>(
         `${API_ENDPOINTS.PRODUCTS.SEARCH}?${queryParams.toString()}`
       )
+      const raw = response as any;
       
-      if (Array.isArray(response)) {
-        return { data: response }
+      // Xử lý mảng trực tiếp
+      if (Array.isArray(raw)) {
+        return { data: raw } as ProductListResponse
+      }
+
+      // Xử lý Axios wrap
+      if (raw.data) {
+         if (Array.isArray(raw.data)) return { data: raw.data } as ProductListResponse;
+         return raw.data as ProductListResponse;
       }
       
-      return response
+      return raw as ProductListResponse
     } catch (error) {
       console.error('Error searching products:', error)
       throw error
@@ -98,4 +124,3 @@ export const productsService = {
     }
   },
 }
-

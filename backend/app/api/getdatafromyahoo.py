@@ -21,7 +21,7 @@ def update_market_data():
     Hàm này chạy ngầm mỗi 15 phút.
     Nhiệm vụ: Gọi Yahoo Finance -> Lưu vào DB.
     """
-    logger.info(f"START: Cập nhật giá thị trường lúc {datetime.now()}")
+    logger.info(f"START: Cập nhật giá thị trường lúc {datetime.utcnow()}")
     
     # Tự tạo session riêng cho luồng chạy ngầm
     db = SessionLocal()

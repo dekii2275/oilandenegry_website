@@ -1,37 +1,38 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import or_, func, case # ✅ Thêm func
 from typing import List, Tuple, Optional
+from pydantic import BaseModel
 
 from app.core.database import get_db
 from app.models.users import User
 from app.models.store import Store
-# 👇 Thêm ProductImage vào import
-from app.models.product import Product, Variant, ProductImage
+from app.models.product import Product, ProductImage
+from app.models.order import Order, OrderItem
+from app.models.withdraw import WithdrawRequest
+from app.schemas.withdraw import WithdrawResponse, WithdrawCreate
+
 from app.schemas.product import (
-    ProductCreate, ProductUpdate, ProductResponse,
-    VariantCreate, VariantUpdate, VariantResponse
+    ProductCreate, ProductUpdate, ProductResponse
 )
+from app.schemas.order import OrderOut 
+
 from app.api.deps import get_current_seller
-from app.models.order import Order, OrderItem, OrderStatus
-from app.schemas.order import SellerOrderSummary, SellerOrderItemResponse
 
 router = APIRouter()
 
-# ========== PRODUCT APIs ==========
+# =================================================================
+# 1. PRODUCT APIs (Giữ nguyên)
+# =================================================================
 
-# POST /api/seller/products - Tạo product mới
 @router.post("/products", response_model=ProductResponse)
 def create_product(
     product_in: ProductCreate,
     current_user_store: Tuple[User, Store] = Depends(get_current_seller),
     db: Session = Depends(get_db)
 ):
-    """
-    Seller tạo product mới (kèm ảnh Gallery và thông tin chi tiết)
-    """
     current_user, store = current_user_store
     
-    # 1. Tạo Product với đầy đủ các trường mới
     new_product = Product(
         store_id=store.id,
         name=product_in.name,
@@ -41,19 +42,21 @@ def create_product(
         origin=product_in.origin,
         warranty=product_in.warranty,
         unit=product_in.unit,
-        image_url=product_in.image_url,  # Ảnh đại diện (Thumbnail)
-        tags=product_in.tags,            # Tự động map List -> JSON
-        specifications=product_in.specifications, # Tự động map Dict -> JSON
-        is_active=product_in.is_active
+        image_url=product_in.image_url,
+        tags=product_in.tags,
+        specifications=product_in.specifications,
+        is_active=product_in.is_active,
+        price=product_in.price,
+        market_price=product_in.market_price,
+        stock=product_in.stock,
+        sku=product_in.sku
     )
     
     db.add(new_product)
-    db.flush() # Flush để lấy ID của new_product trước khi commit
+    db.flush() 
     
-    # 2. Lưu danh sách ảnh Gallery (nếu có)
     if product_in.images:
         for index, url in enumerate(product_in.images):
-            # Tạo record trong bảng product_images
             new_img = ProductImage(
                 product_id=new_product.id,
                 image_url=url,
@@ -63,10 +66,8 @@ def create_product(
     
     db.commit()
     db.refresh(new_product)
-    
     return new_product
 
-# GET /api/seller/products - Xem danh sách products của mình
 @router.get("/products", response_model=List[ProductResponse])
 def get_my_products(
     current_user_store: Tuple[User, Store] = Depends(get_current_seller),
@@ -74,43 +75,9 @@ def get_my_products(
     skip: int = 0,
     limit: int = 100
 ):
-    """
-    Seller xem danh sách tất cả products của store mình
-    """
     current_user, store = current_user_store
-    
-    products = db.query(Product).filter(
-        Product.store_id == store.id
-    ).offset(skip).limit(limit).all()
-    
-    return products
+    return db.query(Product).filter(Product.store_id == store.id).offset(skip).limit(limit).all()
 
-# GET /api/seller/products/{product_id} - Xem chi tiết product
-@router.get("/products/{product_id}", response_model=ProductResponse)
-def get_product_detail(
-    product_id: int,
-    current_user_store: Tuple[User, Store] = Depends(get_current_seller),
-    db: Session = Depends(get_db)
-):
-    """
-    Seller xem chi tiết một product của mình
-    """
-    current_user, store = current_user_store
-    
-    product = db.query(Product).filter(
-        Product.id == product_id,
-        Product.store_id == store.id
-    ).first()
-    
-    if not product:
-        raise HTTPException(
-            status_code=404,
-            detail="Không tìm thấy product này hoặc không thuộc store của bạn"
-        )
-    
-    return product
-
-# PUT /api/seller/products/{product_id} - Cập nhật product
 @router.put("/products/{product_id}", response_model=ProductResponse)
 def update_product(
     product_id: int,
@@ -118,370 +85,391 @@ def update_product(
     current_user_store: Tuple[User, Store] = Depends(get_current_seller),
     db: Session = Depends(get_db)
 ):
-    """
-    Seller cập nhật thông tin product (bao gồm cả ảnh gallery)
-    """
     current_user, store = current_user_store
-    
-    product = db.query(Product).filter(
-        Product.id == product_id,
-        Product.store_id == store.id
-    ).first()
+    product = db.query(Product).filter(Product.id == product_id, Product.store_id == store.id).first()
     
     if not product:
-        raise HTTPException(
-            status_code=404,
-            detail="Không tìm thấy product này hoặc không thuộc store của bạn"
-        )
+        raise HTTPException(status_code=404, detail="Không tìm thấy sản phẩm")
     
-    # 1. Lấy dữ liệu update (loại bỏ các trường None)
     update_data = product_in.dict(exclude_unset=True)
-    
-    # 2. Tách phần ảnh gallery ra xử lý riêng
     gallery_images = update_data.pop("images", None)
     
-    # 3. Cập nhật các trường thông tin cơ bản
     for field, value in update_data.items():
         setattr(product, field, value)
     
-    # 4. Cập nhật bộ sưu tập ảnh (Nếu có gửi lên)
     if gallery_images is not None:
-        # Xóa toàn bộ ảnh cũ
         db.query(ProductImage).filter(ProductImage.product_id == product_id).delete()
-        
-        # Thêm ảnh mới
         for index, url in enumerate(gallery_images):
-            db.add(ProductImage(
-                product_id=product_id,
-                image_url=url,
-                display_order=index
-            ))
+            db.add(ProductImage(product_id=product_id, image_url=url, display_order=index))
     
     db.commit()
     db.refresh(product)
-    
     return product
 
-# DELETE /api/seller/products/{product_id} - Xóa product
 @router.delete("/products/{product_id}")
 def delete_product(
     product_id: int,
     current_user_store: Tuple[User, Store] = Depends(get_current_seller),
     db: Session = Depends(get_db)
 ):
-    """
-    Seller xóa product (sẽ xóa luôn tất cả variants và images nhờ cascade)
-    """
     current_user, store = current_user_store
-    
-    product = db.query(Product).filter(
-        Product.id == product_id,
-        Product.store_id == store.id
-    ).first()
-    
+    product = db.query(Product).filter(Product.id == product_id, Product.store_id == store.id).first()
     if not product:
-        raise HTTPException(
-            status_code=404,
-            detail="Không tìm thấy product này hoặc không thuộc store của bạn"
-        )
-    
+        raise HTTPException(status_code=404, detail="Không tìm thấy sản phẩm")
     db.delete(product)
     db.commit()
-    
-    return {"message": "Đã xóa product thành công"}
+    return {"message": "Đã xóa sản phẩm thành công"}
 
-# ========== VARIANT APIs ==========
-
-# POST /api/seller/products/{product_id}/variants - Tạo variant mới
-@router.post("/products/{product_id}/variants", response_model=VariantResponse)
-def create_variant(
-    product_id: int,
-    variant_in: VariantCreate,
-    current_user_store: Tuple[User, Store] = Depends(get_current_seller),
-    db: Session = Depends(get_db)
-):
-    """
-    Seller tạo variant mới cho một product
-    """
-    current_user, store = current_user_store
-    
-    product = db.query(Product).filter(
-        Product.id == product_id,
-        Product.store_id == store.id
-    ).first()
-    
-    if not product:
-        raise HTTPException(
-            status_code=404,
-            detail="Không tìm thấy product này hoặc không thuộc store của bạn"
-        )
-    
-    if variant_in.sku:
-        existing_variant = db.query(Variant).filter(Variant.sku == variant_in.sku).first()
-        if existing_variant:
-            raise HTTPException(
-                status_code=400,
-                detail=f"SKU '{variant_in.sku}' đã tồn tại"
-            )
-    
-    new_variant = Variant(
-        product_id=product_id,
-        name=variant_in.name,
-        sku=variant_in.sku,
-        price=variant_in.price,
-        market_price=variant_in.market_price, # 👇 Thêm giá thị trường
-        stock=variant_in.stock,
-        is_active=variant_in.is_active
-    )
-    
-    db.add(new_variant)
-    db.commit()
-    db.refresh(new_variant)
-    
-    return new_variant
-
-# GET /api/seller/variants/{variant_id} - Xem chi tiết variant
-@router.get("/variants/{variant_id}", response_model=VariantResponse)
-def get_variant_detail(
-    variant_id: int,
-    current_user_store: Tuple[User, Store] = Depends(get_current_seller),
-    db: Session = Depends(get_db)
-):
-    current_user, store = current_user_store
-    
-    variant = db.query(Variant).join(Product).filter(
-        Variant.id == variant_id,
-        Product.store_id == store.id
-    ).first()
-    
-    if not variant:
-        raise HTTPException(
-            status_code=404,
-            detail="Không tìm thấy variant này hoặc không thuộc store của bạn"
-        )
-    
-    return variant
-
-# PUT /api/seller/variants/{variant_id} - Cập nhật variant
-@router.put("/variants/{variant_id}", response_model=VariantResponse)
-def update_variant(
-    variant_id: int,
-    variant_in: VariantUpdate,
-    current_user_store: Tuple[User, Store] = Depends(get_current_seller),
-    db: Session = Depends(get_db)
-):
-    """
-    Seller cập nhật variant
-    """
-    current_user, store = current_user_store
-    
-    variant = db.query(Variant).join(Product).filter(
-        Variant.id == variant_id,
-        Product.store_id == store.id
-    ).first()
-    
-    if not variant:
-        raise HTTPException(
-            status_code=404,
-            detail="Không tìm thấy variant này hoặc không thuộc store của bạn"
-        )
-    
-    if variant_in.sku and variant_in.sku != variant.sku:
-        existing_variant = db.query(Variant).filter(
-            Variant.sku == variant_in.sku,
-            Variant.id != variant_id
-        ).first()
-        if existing_variant:
-            raise HTTPException(
-                status_code=400,
-                detail=f"SKU '{variant_in.sku}' đã tồn tại"
-            )
-    
-    # Cập nhật thông minh các trường có gửi lên
-    update_data = variant_in.dict(exclude_unset=True)
-    for field, value in update_data.items():
-        setattr(variant, field, value)
-    
-    db.commit()
-    db.refresh(variant)
-    
-    return variant
-
-# DELETE /api/seller/variants/{variant_id} - Xóa variant
-@router.delete("/variants/{variant_id}")
-def delete_variant(
-    variant_id: int,
-    current_user_store: Tuple[User, Store] = Depends(get_current_seller),
-    db: Session = Depends(get_db)
-):
-    current_user, store = current_user_store
-    
-    variant = db.query(Variant).join(Product).filter(
-        Variant.id == variant_id,
-        Product.store_id == store.id
-    ).first()
-    
-    if not variant:
-        raise HTTPException(
-            status_code=404,
-            detail="Không tìm thấy variant này hoặc không thuộc store của bạn"
-        )
-    
-    db.delete(variant)
-    db.commit()
-    
-    return {"message": "Đã xóa variant thành công"}
-
-# GET /api/seller/products/{product_id}/variants
-@router.get("/products/{product_id}/variants", response_model=List[VariantResponse])
-def get_product_variants(
-    product_id: int,
-    current_user_store: Tuple[User, Store] = Depends(get_current_seller),
-    db: Session = Depends(get_db)
-):
-    current_user, store = current_user_store
-    
-    product = db.query(Product).filter(
-        Product.id == product_id,
-        Product.store_id == store.id
-    ).first()
-    
-    if not product:
-        raise HTTPException(
-            status_code=404,
-            detail="Không tìm thấy product này hoặc không thuộc store của bạn"
-        )
-    
-    variants = db.query(Variant).filter(Variant.product_id == product_id).all()
-    
-    return variants
-
-# ========== ORDERS FOR SELLER ==========
-# (Phần Order API bên dưới bạn giữ nguyên, không cần thay đổi gì thêm)
-
-@router.get("/orders", response_model=List[SellerOrderSummary])
-def get_seller_orders(
-    status: Optional[str] = Query(None),
-    current_user_store: Tuple[User, Store] = Depends(get_current_seller),
-    db: Session = Depends(get_db)
-):
-    current_user, store = current_user_store
-
-    query = (
-        db.query(Order)
-        .join(OrderItem, OrderItem.order_id == Order.id)
-        .join(Variant, Variant.id == OrderItem.variant_id)
-        .join(Product, Product.id == Variant.product_id)
-        .filter(Product.store_id == store.id)
-        .distinct()
-    )
-
-    if status:
-        query = query.filter(Order.status == status)
-
-    orders = query.order_by(Order.created_at.desc()).all()
-
-    summaries: List[SellerOrderSummary] = []
-
-    for order in orders:
-        order_items = (
-            db.query(OrderItem)
-            .join(Variant, Variant.id == OrderItem.variant_id)
-            .join(Product, Product.id == Variant.product_id)
-            .filter(
-                OrderItem.order_id == order.id,
-                Product.store_id == store.id,
-            )
-            .all()
-        )
-
-        item_responses = [
-            SellerOrderItemResponse(
-                order_item_id=item.id,
-                product_name=item.product_name,
-                variant_name=item.variant_name,
-                price=item.price,
-                quantity=item.quantity,
-                line_total=item.line_total,
-            )
-            for item in order_items
-        ]
-
-        summaries.append(
-            SellerOrderSummary(
-                order_id=order.id,
-                status=order.status,
-                total=order.total,
-                created_at=order.created_at,
-                customer_email=order.user.email if order.user else "",
-                customer_name=order.user.full_name if order.user else None,
-                items=item_responses,
-            )
-        )
-
-    return summaries
-    
-@router.put("/orders/{order_id}/status", response_model=SellerOrderSummary)
-def update_order_status(
-    order_id: int,
-    new_status: str = Query(..., description="Các trạng thái: CONFIRMED, SHIPPING, DELIVERED, CANCELLED"),
-    current_user_store: Tuple[User, Store] = Depends(get_current_seller),
-    db: Session = Depends(get_db)
-):
-    current_user, store = current_user_store
-
-    order = db.query(Order).join(OrderItem, OrderItem.order_id == Order.id)\
-        .join(Variant, Variant.id == OrderItem.variant_id)\
-        .join(Product, Product.id == Variant.product_id)\
-        .filter(Order.id == order_id, Product.store_id == store.id)\
-        .first()
-
-    if not order:
-        raise HTTPException(status_code=404, detail="Không tìm thấy đơn hàng này trong cửa hàng của bạn")
-
-    order.status = new_status
-    db.commit()
-    db.refresh(order)
-
-    order_items = db.query(OrderItem).join(Variant).join(Product)\
-        .filter(OrderItem.order_id == order.id, Product.store_id == store.id).all()
-
-    item_responses = [
-        SellerOrderItemResponse(
-            order_item_id=item.id,
-            product_name=item.product_name,
-            variant_name=item.variant_name,
-            price=item.price,
-            quantity=item.quantity,
-            line_total=item.line_total,
-        ) for item in order_items
-    ]
-
-    return SellerOrderSummary(
-        order_id=order.id,
-        status=order.status,
-        total=order.total,
-        created_at=order.created_at,
-        customer_email=order.user.email,
-        customer_name=order.user.full_name,
-        items=item_responses,
-    )
+# =================================================================
+# 2. SELLER INFO
+# =================================================================
 
 @router.get("/me")
-def get_seller_info(
-    current_user_store: Tuple[User, Store] = Depends(get_current_seller),
-):
-    """
-    Trả về thông tin người bán và tên cửa hàng để hiển thị lên Header
-    """
+def get_seller_info(current_user_store: Tuple[User, Store] = Depends(get_current_seller)):
     current_user, store = current_user_store
-    
     return {
         "id": current_user.id,
         "full_name": current_user.full_name,
         "email": current_user.email,
-        "role": current_user.role,
-        "store_name": store.store_name,       # ✅ Tên Shop
-        "store_avatar": None,                 # (Nếu sau này store có logo)
-        "user_avatar": None                   # (Nếu user có avatar)
+        "store_name": store.store_name,
     }
+
+# =================================================================
+# 3. ORDER APIs
+# =================================================================
+
+@router.get("/orders", response_model=List[OrderOut])
+def get_seller_orders(
+    status: Optional[str] = Query(None, description="Lọc trạng thái"),
+    keyword: Optional[str] = Query(None, description="Tìm kiếm"),
+    skip: int = 0,
+    limit: int = 20,
+    current_user_store: Tuple[User, Store] = Depends(get_current_seller),
+    db: Session = Depends(get_db)
+):
+    current_user, store = current_user_store
+
+    # 1. Query cơ bản: Join bảng để lọc đơn hàng có sản phẩm của Shop
+    query = (
+        db.query(Order)
+        .join(OrderItem, Order.id == OrderItem.order_id)
+        .join(Product, OrderItem.product_id == Product.id)
+        .filter(Product.store_id == store.id)
+    )
+
+    # 2. Lọc theo trạng thái
+    if status and status != "ALL":
+        query = query.filter(Order.status == status)
+
+    # 3. Tìm kiếm (Logic thông minh)
+    if keyword:
+        search_term = keyword.strip()
+        
+        # 🟢 TRƯỜNG HỢP 1: Tìm đích danh Mã đơn (Bắt đầu bằng #)
+        if search_term.startswith("#"):
+            clean_id = search_term.replace("#", "")
+            if clean_id.isdigit():
+                query = query.filter(Order.id == int(clean_id))
+        
+        # 🟡 TRƯỜNG HỢP 2: Tìm rộng (Tên, SĐT, Địa chỉ, Mã đơn trần)
+        else:
+            query = query.join(User, Order.user_id == User.id).filter(
+                or_(
+                    Order.id.cast(str) == search_term,         # Mã đơn (không có #)
+                    User.full_name.ilike(f"%{search_term}%"),  # Tên khách
+                    User.phone_number.ilike(f"%{search_term}%"), # SĐT khách
+                    Order.shipping_address.ilike(f"%{search_term}%") # Địa chỉ
+                )
+            )
+
+    # 4. Phân trang và sắp xếp
+    # Dùng distinct() vì 1 đơn có thể có nhiều item của shop -> tránh trùng lặp dòng Order
+    orders = query.distinct().order_by(Order.created_at.desc()).offset(skip).limit(limit).all()
+
+    results = []
+    
+    for order in orders:
+        shop_items = []
+        
+        # 5. Xử lý Items: Tạo dict thủ công để khớp với Schema
+        for item in order.items:
+            # Chỉ lấy sản phẩm của shop này
+            if item.product.store_id == store.id:
+                item_data = {
+                    "product_id": item.product_id,
+                    "product_name": item.product.name,
+                    "store_id": store.id,
+                    "store_name": store.store_name,
+                    "quantity": item.quantity,
+                    "price": item.price,
+                    "line_total": item.price * item.quantity 
+                }
+                shop_items.append(item_data)
+        
+        # Chỉ trả về đơn hàng nếu có item của shop
+        if shop_items:
+            customer_name = order.user.full_name if order.user else f"User #{order.user_id}"
+            customer_phone = order.user.phone_number if order.user else None
+
+            results.append({
+                "order_id": order.id,
+                "user_id": order.user_id,
+                "customer_name": customer_name,
+                "customer_phone": customer_phone,
+                "status": order.status,
+                "payment_method": order.payment_method,
+                "shipping_address": order.shipping_address,
+                "created_at": order.created_at,
+                "subtotal": order.total_amount, 
+                "shipping_fee": 0,
+                "tax": 0,
+                "total_amount": order.total_amount,
+                "items": shop_items 
+            })
+
+    return results
+
+
+@router.get("/orders/stats")
+def get_order_stats(
+    current_user_store: Tuple[User, Store] = Depends(get_current_seller),
+    db: Session = Depends(get_db)
+):
+    """
+    Đếm số lượng đơn hàng theo từng trạng thái.
+    """
+    current_user, store = current_user_store
+    
+    # Query lấy Order Object để dùng distinct() theo ID đơn hàng
+    query = (
+        db.query(Order)
+        .join(OrderItem, Order.id == OrderItem.order_id)
+        .join(Product, OrderItem.product_id == Product.id)
+        .filter(Product.store_id == store.id)
+    )
+    
+    # DISTINCT để loại bỏ các dòng trùng lặp
+    orders = query.distinct().all()
+    
+    stats = {
+        "new": 0,
+        "processing": 0,
+        "shipping": 0,
+        "completed": 0,
+        "cancelled": 0
+    }
+    
+    # Đếm thủ công
+    for order in orders:
+        st = order.status
+        if st in ["NEW", "CONFIRMED", "PENDING"]:
+            stats["new"] += 1
+        elif st == "SHIPPING":
+            stats["shipping"] += 1
+        elif st == "COMPLETED":
+            stats["completed"] += 1
+        elif st == "CANCELLED":
+            stats["cancelled"] += 1
+            
+    return stats
+
+# =================================================================
+# 4. ORDER ACTION APIs (Cập nhật trạng thái)
+# =================================================================
+
+class OrderStatusUpdate(BaseModel):
+    status: str
+
+@router.put("/orders/{order_id}/status")
+def update_order_status(
+    order_id: int,
+    status_update: OrderStatusUpdate,
+    current_user_store: Tuple[User, Store] = Depends(get_current_seller),
+    db: Session = Depends(get_db)
+):
+    current_user, store = current_user_store
+    
+    # 1. Tìm đơn hàng
+    order = db.query(Order).filter(Order.id == order_id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Không tìm thấy đơn hàng")
+
+    # 2. Kiểm tra quyền sở hữu (Shop có sản phẩm trong đơn này không?)
+    has_item_in_store = (
+        db.query(OrderItem)
+        .join(Product, OrderItem.product_id == Product.id)
+        .filter(OrderItem.order_id == order_id, Product.store_id == store.id)
+        .first()
+    )
+    
+    if not has_item_in_store:
+        raise HTTPException(status_code=403, detail="Bạn không có quyền thao tác trên đơn hàng này")
+
+    # 3. Validate và Cập nhật trạng thái
+    new_status = status_update.status
+    if new_status not in ["SHIPPING", "CANCELLED", "COMPLETED"]:
+         raise HTTPException(status_code=400, detail="Trạng thái không hợp lệ")
+
+    order.status = new_status
+    db.commit()
+    
+    return {"message": "Cập nhật trạng thái thành công", "status": new_status}
+
+## =================================================================
+# 5. WALLET APIs (ĐÃ SỬA VÀ BỔ SUNG)
+# =================================================================
+
+# ✅ API 1: LẤY THÔNG TIN VÍ (TÍNH TOÁN REAL-TIME)
+@router.get("/wallet/overview")
+def get_wallet_overview(
+    current_user_store: Tuple[User, Store] = Depends(get_current_seller),
+    db: Session = Depends(get_db)
+):
+    current_user, store = current_user_store
+    
+    # ==================================================================
+    # 1. TÍNH DOANH THU (CÁCH MỚI: LẤY TOTAL_AMOUNT CỦA ĐƠN HÀNG)
+    # ==================================================================
+    
+    # Bước A: Tìm danh sách các Order ID mà Store này có tham gia bán
+    # (Dùng distinct để tránh trùng lặp nếu 1 đơn có nhiều món của cùng 1 shop)
+    store_order_ids_query = (
+        db.query(OrderItem.order_id)
+        .filter(OrderItem.store_id == store.id)
+        .distinct()
+    )
+    
+    # Bước B: Cộng tổng tiền (total_amount) của các Order đó
+    # Chỉ tính các đơn đã chốt (CONFIRMED, SHIPPING, COMPLETED)
+    revenue_query = (
+        db.query(func.sum(Order.total_amount))
+        .filter(Order.id.in_(store_order_ids_query)) # Chỉ lấy đơn của shop mình
+        .filter(Order.status.in_(["CONFIRMED", "SHIPPING", "COMPLETED"]))
+    )
+    
+    total_revenue = revenue_query.scalar() or 0 # Nếu null thì trả về 0
+
+    # ==================================================================
+    # 2. TÍNH TIỀN ĐÃ RÚT (GIỮ NGUYÊN)
+    # ==================================================================
+    withdraw_query = (
+        db.query(func.sum(WithdrawRequest.amount))
+        .filter(WithdrawRequest.store_id == store.id)
+        .filter(WithdrawRequest.status != "REJECTED") # Trừ tiền các đơn PENDING và COMPLETED
+    )
+    total_withdrawn = withdraw_query.scalar() or 0
+
+    # ==================================================================
+    # 3. TÍNH SỐ DƯ
+    # ==================================================================
+    # Doanh thu thực nhận = Tổng đơn hàng
+    balance = float(total_revenue) - float(total_withdrawn)
+
+    return {
+        "balance": balance,
+        "totalRevenue": float(total_revenue),
+        "platformFee": 0, # Tạm thời chưa tính phí sàn
+        "pendingPayout": 0
+    }
+
+# ✅ API 2: LẤY THÔNG TIN NGÂN HÀNG (QUAN TRỌNG ĐỂ FRONTEND KHÔNG BỊ LỖI)
+@router.get("/wallet/bank-account")
+def get_bank_account(
+    current_user_store: Tuple[User, Store] = Depends(get_current_seller)
+):
+    _, store = current_user_store
+    # Nếu store chưa cập nhật bank -> trả về null để Frontend hiện nút "Thêm"
+    if not store.bank_account:
+        return None
+        
+    return {
+        "bankName": store.bank_name,
+        "accountNumber": store.bank_account,
+        "accountHolder": store.bank_holder
+    }
+
+# ✅ API 3: LỊCH SỬ RÚT TIỀN
+@router.get("/wallet/withdraw-requests") 
+def get_withdraw_requests(
+    current_user_store: Tuple[User, Store] = Depends(get_current_seller),
+    db: Session = Depends(get_db)
+):
+    _, store = current_user_store
+    requests = (
+        db.query(WithdrawRequest)
+        .filter(WithdrawRequest.store_id == store.id)
+        .order_by(WithdrawRequest.created_at.desc())
+        .all()
+    )
+    
+    results = []
+    for req in requests:
+        results.append({
+            "id": str(req.id),
+            "code": f"WD-{req.id:04d}",
+            "requestDate": req.created_at,
+            "amount": req.amount,
+            "bankName": req.bank_name or store.bank_name,
+            "bankAccount": req.bank_account or store.bank_account,
+            "status": req.status
+        })
+    return results
+
+# ✅ API 4: TẠO YÊU CẦU RÚT TIỀN (ĐÃ FIX LOGIC CHECK SỐ DƯ)
+@router.post("/wallet/withdraw")
+def request_withdraw(
+    data: WithdrawCreate,
+    current_user_store: Tuple[User, Store] = Depends(get_current_seller),
+    db: Session = Depends(get_db)
+):
+    _, store = current_user_store
+    
+    # 1. Validate đầu vào
+    if data.amount <= 0:
+        raise HTTPException(status_code=400, detail="Số tiền rút không hợp lệ")
+
+    # 2. Validate Bank info
+    if not store.bank_account:
+        raise HTTPException(status_code=400, detail="Vui lòng cập nhật tài khoản ngân hàng trước")
+
+    # 3. TÍNH LẠI SỐ DƯ ĐỂ KIỂM TRA (An toàn tuyệt đối)
+    # --- Tổng thu ---
+    revenue_query = (
+        db.query(func.sum(OrderItem.price * OrderItem.quantity))
+        .join(Order, OrderItem.order_id == Order.id)
+        .join(Product, OrderItem.product_id == Product.id)
+        .filter(Product.store_id == store.id)
+        .filter(Order.status.in_(["CONFIRMED", "SHIPPING", "COMPLETED"]))
+    )
+    total_revenue = revenue_query.scalar() or 0
+    
+    # --- Tổng đã rút ---
+    withdraw_query = (
+        db.query(func.sum(WithdrawRequest.amount))
+        .filter(WithdrawRequest.store_id == store.id)
+        .filter(WithdrawRequest.status != "REJECTED") 
+    )
+    total_withdrawn = withdraw_query.scalar() or 0
+    
+    current_balance = float(total_revenue) - float(total_withdrawn)
+
+    # 4. SO SÁNH
+    if float(data.amount) > current_balance:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Số dư không đủ. Khả dụng: {current_balance:,.0f}đ"
+        )
+
+    # 5. Lưu vào DB
+    new_req = WithdrawRequest(
+        store_id=store.id,
+        amount=data.amount,
+        status="PENDING",
+        bank_name=store.bank_name,
+        bank_account=store.bank_account,
+        bank_holder=store.bank_holder
+    )
+    db.add(new_req)
+    db.commit()
+    
+    return {"message": "Gửi yêu cầu rút tiền thành công"}

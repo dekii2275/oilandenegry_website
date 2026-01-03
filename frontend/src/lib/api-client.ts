@@ -1,6 +1,8 @@
 // --- FILE: src/lib/api-client.ts ---
 const API_BASE_URL = (process.env.NEXT_PUBLIC_API_URL || '/api').replace(/\/+$/, '');
 
+import axios from "axios";
+
 
 
 export interface ApiResponse<T = any> {
@@ -238,7 +240,12 @@ class ApiClient {
 }
 
 // Export singleton instance
-export const apiClient = new ApiClient(API_BASE_URL)
+// export const apiClient = new ApiClient(API_BASE_URL)
+
+export const apiClient = axios.create({
+  baseURL: "/api",
+  headers: { "Content-Type": "application/json" },
+});
 
 // Export class
 export { ApiClient }

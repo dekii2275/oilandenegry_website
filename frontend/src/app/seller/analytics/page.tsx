@@ -111,7 +111,7 @@ export default function RevenueAnalyticsPage() {
           suffix="đ"
           change={stats?.totalRevenueChange}
           iconBg="bg-green-100"
-          icon="$"
+          icon="₫"
         />
         <StatCard
           title="Doanh thu thuần"
